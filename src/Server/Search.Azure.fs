@@ -23,7 +23,7 @@ type SearchableProperty =
       [<IsFacetable; IsFilterable; IsSearchable; IsSortable>] Town : string
       [<IsFacetable; IsFilterable; IsSearchable>] District : string
       [<IsFacetable; IsFilterable; IsSearchable>] County : string
-      [<IsFilterable>] Geo : GeographyPoint }
+      [<IsFilterable; IsSortable>] Geo : GeographyPoint }
     static member Default =
         { PostCode = null; PropertyType = null; Build = null; Contract = null
           Building = null; Street = null; Locality = null; Town = null
@@ -93,7 +93,9 @@ module Management =
 [<AutoOpen>]
 module QueryBuilder =
     let findByDistance (geo:GeographyPoint) maxDistance =
-        SearchParameters(Filter=sprintf "geo.distance(Geo, geography'POINT(%f %f)') le %d" geo.Longitude geo.Latitude maxDistance)
+        SearchParameters(
+            Filter = sprintf "geo.distance(Geo, geography'POINT(%f %f)') le %d" geo.Longitude geo.Latitude maxDistance,
+            OrderBy = ResizeArray [ sprintf "geo.distance(Geo, geography'POINT(%f %f)')" geo.Longitude geo.Latitude ])
     let withFilter (parameters:SearchParameters) (field, value:string option) =
         parameters.Filter <-
             [ (match parameters.Filter with f when String.IsNullOrWhiteSpace f -> None | f -> Some f)

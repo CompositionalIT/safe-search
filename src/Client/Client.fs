@@ -288,6 +288,7 @@ let viewSearchResults model dispatch =
                         th [] (withSortIcon str "County" model.Sorting)
                         th [] (withSortIcon sortableColumn "Town" model.Sorting)
                         th [] (withSortIcon sortableColumn "Street" model.Sorting)
+                        th [] [ str "Postcode" ]
                     ]
                 ]
                 tbody [] [
@@ -298,6 +299,7 @@ let viewSearchResults model dispatch =
                             td [ Style [ WhiteSpace "nowrap" ] ] [ str result.Address.County ]
                             td [ Style [ WhiteSpace "nowrap" ] ] [ str result.Address.TownCity ]
                             td [ Style [ WhiteSpace "nowrap" ] ] [ result.Address.Street |> Option.defaultValue "" |> str ]
+                            td [ Style [ WhiteSpace "nowrap" ] ] [ result.Address.PostCode |> Option.defaultValue "" |> str ]
                         ]
                 ]
             ]
