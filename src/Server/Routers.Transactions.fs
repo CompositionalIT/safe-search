@@ -8,6 +8,7 @@ open SafeSearch.Search
 open Saturn
 open System
 open System.IO
+open Thoth.Json.Net
 
 type PricePaid = CsvProvider<"price-paid-schema.csv", PreferOptionals = true, Schema="Date=Date">
 
@@ -30,13 +31,12 @@ module Postcodes =
             Compression.ZipFile.ExtractToDirectory(zipPath, ".")
             File.Delete zipPath
         (Postcodes.Load localPostcodesFilePath).Rows
-        // |> Seq.choose tryGeoPostcode
         |> Seq.choose(fun r ->
             match r.Latitude, r.Longitude with
             | Some lat, Some long -> Some (r.Postcode, (float lat, float long))
             | _ -> None)
 
-let fetchTransactions() =
+let uploadTransactions(ConnectionString storageConnection) =
     let txnData, rowCount =
         let path = Path.Combine(Directory.GetCurrentDirectory(), "pp-monthly-update-new-version.csv")
         
@@ -50,35 +50,50 @@ let fetchTransactions() =
         
         (PricePaid.Load path).Rows |> Seq.cache, lines
 
-    let data =
-        lazy
+    async {
+        printfn "Build postcode lookup"        
+        let geoLookup =
             let requiredPostcodes = txnData |> Seq.choose(fun r -> r.Postcode) |> Set
-            let geoLookup = Postcodes.getAllPostcodes() |> Seq.filter(fst >> requiredPostcodes.Contains) |> Map
+            Postcodes.getAllPostcodes() |> Seq.filter(fst >> requiredPostcodes.Contains) |> Map
 
-            txnData
-            |> Seq.map(fun t ->
-                { Address =
-                    { Building = [ Some t.PAON; t.SAON ] |> List.choose id |> String.concat " "
-                      Street = t.Street
-                      Locality = t.Locality
-                      TownCity = t.``Town/City``
-                      District = t.District
-                      County = t.County
-                      PostCode = t.Postcode }
-                  BuildDetails =
-                    { PropertyType = t.PropertyType |> Option.bind PropertyType.Parse
-                      Build = t.Duration |> BuildType.Parse
-                      Contract = t.``Old/New`` |> ContractType.Parse }
-                  Price = t.Price
-                  DateOfTransfer = t.Date }, t.Postcode |> Option.bind geoLookup.TryFind )
-    rowCount, data
+        let encode (prop:PricePaid.Row) =
+            let geo = prop.Postcode |> Option.bind geoLookup.TryFind
+            Encode.object [
+                yield "TransactionId", Encode.string (prop.TransactionId.ToString())
+                yield "Price", Encode.int prop.Price
+                yield "DateOfTransfer", Encode.datetime prop.Date
+                match prop.Postcode with Some p -> yield "PostCode", Encode.string p | _ -> ()
+                match prop.PropertyType |> Option.bind SafeSearch.PropertyType.Parse with Some p -> yield "PropertyType", Encode.string p.Description | _ -> ()
+                yield "Build", prop.Duration |> SafeSearch.BuildType.Parse |> fun s -> s.Description |> Encode.string
+                yield "Contract", prop.``Old/New`` |> SafeSearch.ContractType.Parse |> fun s -> s.Description |> Encode.string
+                yield "Building", [ Some prop.PAON; prop.SAON ] |> List.choose id |> String.concat " " |> Encode.string
+                match prop.Street with Some s -> yield "Street", s |> Encode.string | _ -> ()
+                match prop.Locality with Some s -> yield "Locality", Encode.string s | _ -> ()
+                yield "Town", Encode.string prop.``Town/City``
+                yield "District", Encode.string prop.District
+                yield "County", Encode.string prop.County
+                match geo with
+                | Some (lat, long) ->
+                    yield "Geo", Encode.object [
+                        "type", Encode.string "Point"
+                        "coordinates", Encode.array [| Encode.float long; Encode.float lat |]
+                    ]
+                | None -> ()
+            ]
+
+        for (i, chunk) in (txnData |> Seq.chunkBySize 10000 |> Seq.indexed) do
+            let json = chunk |> Array.map encode |> Encode.array |> Encode.toString 4
+            printfn "Uploading %d..." i
+            let b = Storage.Azure.Containers.properties.[sprintf "%d.json" i]
+            do! b.AsCloudBlockBlob(storageConnection).UploadTextAsync(json) |> Async.AwaitTask
+            ()
+    } |> Async.Start 
+    rowCount
 let propertyResultIngester = Ingestion.buildIngester<PropertyResult * ((float * float) option)>()
 
-let ingest (searcher:ISearch) next ctx = task {
+let ingest (searcher:ISearch) storageConnection next ctx = task {
     searcher.Clear()
-    let! rowsImported =
-        let rowsToImport, transactions = fetchTransactions()
-        propertyResultIngester.IngestData(rowsToImport, transactions, searcher.Upload)
+    let rowsImported = uploadTransactions storageConnection
     return! json rowsImported next ctx }
 
 let getStats (searcher:ISearch) next ctx = task {
@@ -90,6 +105,6 @@ let getStats (searcher:ISearch) next ctx = task {
 
     return! json indexStats next ctx }
 
-let createRouter searcher = router {
-    get "ingest" (ingest searcher)
+let createRouter searcher storageConnection = router {
+    get "ingest" (ingest searcher storageConnection)
     get "stats" (getStats searcher) }

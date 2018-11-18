@@ -31,7 +31,7 @@ type SearchableProperty =
           TransactionId = null; Geo = null }
 
 let suggesterName = "suggester"
-
+let indexName = "properties"
 [<AutoOpen>]
 module Management =
     open System.Collections.Generic
@@ -45,15 +45,42 @@ module Management =
 
     let propertiesIndex searchConfig =
         let client = searchClient searchConfig
-        client.Indexes.GetClient "properties"
+        client.Indexes.GetClient indexName
 
-    let initialize config =
-        let client = searchClient config
-        if not (client.Indexes.Exists "properties") then
-            let suggester = Suggester(Name = suggesterName, SourceFields = [| "Street"; "Locality"; "Town"; "District"; "County" |])
-            Index(Name = "properties", Fields = FieldBuilder.BuildForType<SearchableProperty>(), Suggesters = [| suggester |])
-            |> client.Indexes.Create
-            |> ignore
+    type InitializationMode = ForceReset | OnlyIfNonExistant
+    let initialize initMode searchConfig (ConnectionString storageConfig) =
+        let client = searchClient searchConfig
+
+        // index
+        match initMode, client.Indexes.Exists indexName with
+        | ForceReset, _ | _, false ->
+            client.Indexes.Delete indexName
+            let index = Index(Name = indexName,
+                              Fields = FieldBuilder.BuildForType<SearchableProperty>(),
+                              Suggesters = [| Suggester(Name = suggesterName,
+                                                        SourceFields = [| "Street"; "Locality"; "Town"; "District"; "County" |]) |])
+            
+            client.Indexes.Create index |> ignore
+
+            // datasource for indexer
+            Storage.Azure.Containers.properties.AsCloudBlobContainer(storageConfig).CreateIfNotExistsAsync().Result |> ignore
+
+            let ds = DataSource(Container = DataContainer(Name = "properties"),
+                               Credentials = DataSourceCredentials(ConnectionString = storageConfig),
+                               Name = "blob-transactions",
+                               Type = DataSourceType.AzureBlob)
+            client.DataSources.Delete ds.Name
+            client.DataSources.Create ds |> ignore
+
+            // indexer
+            let indexer = Indexer(Name = "properties-indexer",
+                                  DataSourceName = ds.Name,
+                                  TargetIndexName = indexName,
+                                  Schedule = IndexingSchedule(TimeSpan.FromMinutes 5.),
+                                  Parameters = IndexingParameters().ParseJsonArrays())
+            client.Indexers.Delete indexer.Name
+            client.Indexers.Create indexer |> ignore
+        | _ -> ()
 
 [<AutoOpen>]
 module QueryBuilder =
@@ -96,58 +123,6 @@ module QueryBuilder =
             |> Map.ofSeq
             |> fun x -> x.TryFind >> Option.defaultValue []
         return facets, searchResult.Results |> Seq.toArray |> Array.map(fun r -> r.Document), searchResult.Count |> Option.ofNullable |> Option.map int }
-
-[<Literal>]
-let BATCH_INSERT_SIZE = 1000
-
-let insertProperties onComplete config (properties:(PropertyResult * ((float * float) option)) seq) = task {
-    let index = propertiesIndex config
-    let createTransactionId r =
-        sprintf "%s%s%s%d"
-            r.Address.Building
-            (r.Address.Street |> Option.toObj)
-            (r.Address.PostCode |> Option.toObj)
-            r.Price
-        |> fun s -> s.Replace(" ", "")
-        |> (Seq.filter Char.IsLetterOrDigit >> Array.ofSeq >> String)
-
-    let toSearchableProperty (prop:PropertyResult, geo) =
-        { TransactionId = createTransactionId prop
-          Price = Nullable prop.Price
-          DateOfTransfer = Nullable prop.DateOfTransfer
-          PostCode = prop.Address.PostCode |> Option.toObj
-          PropertyType = prop.BuildDetails.PropertyType |> Option.map string |> Option.toObj
-          Build = prop.BuildDetails.Build.ToString()
-          Contract = prop.BuildDetails.Contract.ToString()
-          Building = prop.Address.Building
-          Street = prop.Address.Street |> Option.toObj
-          Locality = prop.Address.Locality |> Option.toObj
-          Town = prop.Address.TownCity
-          District = prop.Address.District
-          County = prop.Address.County
-          Geo = geo
-                |> Option.map(fun (lat, long) -> GeographyPoint.Create(lat, long))
-                |> Option.toObj }    
-
-    let rec retry retries (x:'a -> unit Task) v = task {
-        try
-        return! x v
-        with _ when retries > 0 ->
-            printfn "Failed (%d), retrying..." retries
-            return! retry (retries - 1 )x v }
-
-    let insertBatch (batch:SearchableProperty seq) = task {
-        let! request = IndexBatch.Upload batch |> index.Documents.IndexAsync
-        let success, fail = request.Results |> Seq.toArray |> Array.partition(fun r -> r.Succeeded)
-        onComplete (success.Length, fail.Length) }
-        
-    let! _ =
-        properties
-        |> Seq.map toSearchableProperty
-        |> Seq.chunkBySize BATCH_INSERT_SIZE
-        |> Seq.map (retry 3 insertBatch)
-        |> Task.WhenAll
-    () }
 
 let private toFindPropertiesResponse findFacet count page results =
     { Results =
@@ -212,15 +187,11 @@ let suggest config request = task {
     let! result = index.Documents.SuggestAsync(request.Text, suggesterName, SuggestParameters(Top = Nullable(10)))
     return { Suggestions = result.Results |> Seq.map (fun x -> x.Text) |> Seq.distinct |> Seq.toArray } }
 
-let searcher searchConfig tryGetGeo =
+let searcher searchConfig storageConfig tryGetGeo =
     { new Search.ISearch with
         member __.GenericSearch request = findGeneric searchConfig request
         member __.PostcodeSearch request = findByPostcode searchConfig tryGetGeo request
         member __.Suggest request = suggest searchConfig request
-        member __.Upload onComplete properties = insertProperties onComplete searchConfig properties
         member __.Documents() = getDocumentSize searchConfig
-        member __.Clear() =
-            let client = searchClient searchConfig
-            client.Indexes.Delete "properties"            
-            initialize searchConfig
+        member __.Clear() = initialize ForceReset searchConfig storageConfig
     }

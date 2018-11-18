@@ -13,11 +13,9 @@ type GeoPostcode =
       Longitude : float }
     member this.PostCodeDescription = sprintf "%s %s" (fst this.PostCode) (snd this.PostCode)
 
-
 type ISearch =
     abstract GenericSearch : FindGenericRequest -> SearchResponse Task
     abstract PostcodeSearch : FindNearestRequest -> SearchResponse Task
     abstract Suggest : SuggestRequest -> SuggestResponse Task
-    abstract Upload : (int * int -> unit) -> (PropertyResult * (float * float) option) seq -> unit Task
     abstract Documents : unit -> int64 Task
     abstract Clear : unit -> unit
