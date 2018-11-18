@@ -70,7 +70,7 @@ let ingest (ConnectionString connectionString) next ctx = task {
     let rowsToImport, postcodes =
         downloadPostcodes()
         getPostcodes localPostcodesFilePath
-    let postcodes = lazy (postcodes |> Seq.choose tryGeoPostcode)
+    let postcodes = postcodes |> Seq.choose tryGeoPostcode
 
     let! rowsImported = postcodesIngester.IngestData(rowsToImport, postcodes, insertPostcodes connectionString)
 

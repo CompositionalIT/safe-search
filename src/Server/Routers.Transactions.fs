@@ -50,7 +50,7 @@ let uploadTransactions(ConnectionString storageConnection) =
         
         (PricePaid.Load path).Rows |> Seq.cache, lines
 
-    async {
+    let doProgressImport onComplete (txnData:PricePaid.Row seq) = task {
         printfn "Build postcode lookup"        
         let geoLookup =
             let requiredPostcodes = txnData |> Seq.choose(fun r -> r.Postcode) |> Set
@@ -85,15 +85,17 @@ let uploadTransactions(ConnectionString storageConnection) =
             let json = chunk |> Array.map encode |> Encode.array |> Encode.toString 4
             printfn "Uploading %d..." i
             let b = Storage.Azure.Containers.properties.[sprintf "%d.json" i]
-            do! b.AsCloudBlockBlob(storageConnection).UploadTextAsync(json) |> Async.AwaitTask
-            ()
-    } |> Async.Start 
-    rowCount
-let propertyResultIngester = Ingestion.buildIngester<PropertyResult * ((float * float) option)>()
+            do! b.AsCloudBlockBlob(storageConnection).UploadTextAsync(json)
+            onComplete(chunk.Length, 0)
+        }
+    
+    rowCount, txnData, doProgressImport
+let propertyResultIngester = Ingestion.buildIngester<PricePaid.Row>()
 
 let ingest (searcher:ISearch) storageConnection next ctx = task {
     searcher.Clear()
-    let rowsImported = uploadTransactions storageConnection
+    let rowsToImport, txnData, importer = uploadTransactions storageConnection
+    let! rowsImported = propertyResultIngester.IngestData(rowsToImport, txnData, importer)
     return! json rowsImported next ctx }
 
 let getStats (searcher:ISearch) next ctx = task {

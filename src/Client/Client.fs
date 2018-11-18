@@ -92,8 +92,8 @@ let updateIndexMsg msg model =
         { model with IndexStats = model.IndexStats |> Map.add index.Endpoint { Status = Indexing 0; DocumentCount = 0L }; Refreshing = false }, cmd
     | StartedIndexing (index, documents) ->
         let messageCmd =
-            Toastr.message (sprintf "Uploading and indexing %s %s" (printNumber documents) index.Endpoint)
-            |> Toastr.title "Indexing started!"
+            Toastr.message (sprintf "Importing %s %s" (printNumber documents) index.Endpoint)
+            |> Toastr.title "Import started!"
             |> Toastr.info
         model, Cmd.batch [ loadAllStats; messageCmd ]
 
@@ -160,7 +160,7 @@ let viewNavBar model dispatch =
                         if isIndexing then yield Button.Disabled true
                         yield Button.Color IsInfo
                         yield Button.OnClick (fun _ -> dispatch (StartIndexing index)) ] [
-                        str (sprintf "Start Indexing %s" index.Endpoint)
+                        str (sprintf "Import %s" index.Endpoint)
                     ]
                 ]
             yield createIngestionButton PostcodeIndex
@@ -186,11 +186,11 @@ let viewNavBar model dispatch =
             match inProgressIndex with
             | Some (index, pc) ->
                 yield! [
-                    Navbar.Item.div [] [ str (sprintf "Indexing '%s' in progress... (%d%%)" index pc) ]
+                    Navbar.Item.div [] [ str (sprintf "Importing '%s' in progress... (%d%%)" index pc) ]
                     Navbar.Item.div [] [ Icon.faIcon [ ] [ Fa.icon Fa.I.Cog; Fa.spin ] ]
                     Navbar.Item.div [] [ Progress.progress [ Progress.Color IsInfo; Progress.Value pc; Progress.Max 100 ] [ str (sprintf "%d%%" pc) ] ]
                 ]
-            | _ -> yield Navbar.Item.div [] [ str "Indexing is idle." ]
+            | _ -> yield Navbar.Item.div [] [ str "Import is idle." ]
             
             let statsText =
                 model.IndexStats

@@ -63,7 +63,15 @@ module Management =
             client.Indexes.Create index |> ignore
 
             // datasource for indexer
-            Storage.Azure.Containers.properties.AsCloudBlobContainer(storageConfig).CreateIfNotExistsAsync().Result |> ignore
+            async {
+                let! _ = Storage.Azure.Containers.properties.AsCloudBlobContainer(storageConfig).CreateIfNotExistsAsync() |> Async.AwaitTask
+                let! blobs = Storage.Azure.Containers.properties.ListBlobs(connectionString = storageConfig)
+                return!
+                    blobs
+                    |> Array.map(fun b -> b.AsICloudBlob().DeleteAsync() |> Async.AwaitTask)
+                    |> Async.Parallel
+                    |> Async.Ignore }
+            |> Async.RunSynchronously
 
             let ds = DataSource(Container = DataContainer(Name = "properties"),
                                Credentials = DataSourceCredentials(ConnectionString = storageConfig),
