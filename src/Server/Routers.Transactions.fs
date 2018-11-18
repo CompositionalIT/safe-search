@@ -95,8 +95,8 @@ let propertyResultIngester = Ingestion.buildIngester<PricePaid.Row>()
 let ingest (searcher:ISearch) storageConnection next ctx = task {
     searcher.Clear()
     let rowsToImport, txnData, importer = uploadTransactions storageConnection
-    let! rowsImported = propertyResultIngester.IngestData(rowsToImport, txnData, importer)
-    return! json rowsImported next ctx }
+    propertyResultIngester.IngestData(rowsToImport, txnData, importer)
+    return! json rowsToImport next ctx }
 
 let getStats (searcher:ISearch) next ctx = task {
     let! documents = searcher.Documents()

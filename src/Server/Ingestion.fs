@@ -19,7 +19,7 @@ type StoreStatus =
             IndexState.Indexing percent
 
 type Message<'T> =
-    | Ingest of rows:int * 'T seq * 'T Importer * ProgressFunc
+    | Ingest of rows:int * 'T seq * 'T Importer
     | Report of (StoreStatus -> unit)
     | MarkCompleted of int
     | UploadedDocuments of int * int
@@ -39,14 +39,14 @@ let buildImportStore<'T> () = MailboxProcessor.Start(fun inbox ->
             let total = docs + failed
             return! processMsg (Ingesting(rows - total, docs))
 
-        | Ingest (rowCount, data, importer:'T Importer, reply), (Idle | Loaded _) ->
+        | Ingest (rowCount, data, importer:'T Importer), (Idle | Loaded _) ->
             async {
                 try
                 do! data |> importer reporter |> Async.AwaitTask
                 with ex -> printfn "%A" ex
                 inbox.Post(MarkCompleted rowCount) }
             |> Async.Start
-            reply rowCount
+
             return! processMsg (Downloading rowCount)
         
         | MarkCompleted rows, _ ->
@@ -63,7 +63,7 @@ let buildImportStore<'T> () = MailboxProcessor.Start(fun inbox ->
     processMsg StoreStatus.Idle)
 
 type Ingester<'T> =
-    abstract member IngestData : rowsToImport:int * 'T seq * 'T Importer -> int Task
+    abstract member IngestData : rowsToImport:int * 'T seq * 'T Importer -> unit
     abstract member GetStoreStatus : unit -> StoreStatus Task
 
 let buildIngester<'T>() =
@@ -72,7 +72,7 @@ let buildIngester<'T>() =
 
     { new Ingester<'T> with
         member __.IngestData(rows, data, importer) =
-            store.PostAndAsyncReply (fun t -> Ingest(rows, data, importer, t.Reply)) |> Async.StartAsTask
+            store.Post (Ingest(rows, data, importer))
         member __.GetStoreStatus() =
             store.PostAndAsyncReply (fun c -> Report c.Reply) |> Async.StartAsTask
     }

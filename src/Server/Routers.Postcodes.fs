@@ -72,9 +72,9 @@ let ingest (ConnectionString connectionString) next ctx = task {
         getPostcodes localPostcodesFilePath
     let postcodes = postcodes |> Seq.choose tryGeoPostcode
 
-    let! rowsImported = postcodesIngester.IngestData(rowsToImport, postcodes, insertPostcodes connectionString)
+    postcodesIngester.IngestData(rowsToImport, postcodes, insertPostcodes connectionString)
 
-    return! json rowsImported next ctx }
+    return! json rowsToImport next ctx }
 
 open SafeSearch.Ingestion
 
