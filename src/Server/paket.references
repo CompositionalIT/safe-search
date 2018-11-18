@@ -1,0 +1,8 @@
+group Server
+FSharp.Core
+Saturn
+Thoth.Json.Giraffe
+TaskBuilder.fs
+FSharp.Azure.StorageTypeProvider
+FSharp.Data
+Microsoft.Azure.Search

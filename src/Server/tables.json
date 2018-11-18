@@ -1,0 +1,13 @@
+{
+    "postcodes": {
+        "Postcode": {
+            "Type": "String"
+        },
+        "Lat": {
+            "Type": "double"
+        },
+        "Long": {
+            "Type": "double"
+        }
+    }
+}
