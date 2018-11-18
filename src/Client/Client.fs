@@ -283,12 +283,21 @@ let viewSearchResults model dispatch =
             Table.table [ Table.IsFullWidth; Table.IsBordered; Table.IsHoverable; Table.IsStriped ] [
                 thead [] [
                     tr [] [
-                        th [ Style [ Width "1px" ] ] (withSortIcon sortableColumn "Date" model.Sorting)
-                        th [ Style [ Width "1px" ] ] (withSortIcon sortableColumn "Price" model.Sorting)
-                        th [] (withSortIcon str "County" model.Sorting)
-                        th [] (withSortIcon sortableColumn "Town" model.Sorting)
-                        th [] (withSortIcon sortableColumn "Street" model.Sorting)
-                        th [] [ str "Postcode" ]
+                        match model.SearchMethod with
+                        | Normal ->
+                            yield th [ Style [ Width "1px" ] ] (withSortIcon sortableColumn "Date" model.Sorting)
+                            yield th [ Style [ Width "1px" ] ] (withSortIcon sortableColumn "Price" model.Sorting)
+                            yield th [] [ str "County" ]
+                            yield th [] (withSortIcon sortableColumn "Town" model.Sorting)
+                            yield th [] (withSortIcon sortableColumn "Street" model.Sorting)
+                            yield th [] [ str "Postcode" ]
+                        | Location ->
+                            yield th [ Style [ Width "1px" ] ] [ str "Date" ]
+                            yield th [ Style [ Width "1px" ] ] [ str "Price" ]
+                            yield th [] [ str "County" ]
+                            yield th [] [ str "Town" ]
+                            yield th [] [ str "Street" ]
+                            yield th [] [ str "Postcode" ]
                     ]
                 ]
                 tbody [] [
