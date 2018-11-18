@@ -218,14 +218,20 @@ let viewSearchPanel model dispatch =
         Columns.columns [] [
             Column.column [ Column.Option.Width(Screen.All, Column.IsThreeFifths) ] [
                 Control.div [ Control.HasIconLeft ] [
-                    Input.text [ yield Input.Option.Placeholder "Search for a property here"
-                                 yield Input.Option.Color IColor.IsPrimary
-                                 yield Input.Value model.SearchText
-                                 match model.SearchState with
-                                 | Searching -> yield Input.Disabled true
-                                 | NoSearchText | CanSearch -> ()
-                                 yield Input.OnChange (fun e -> dispatch (SetSearchText e.Value)) ]
+                    Input.text [
+                        yield Input.Option.Placeholder "Enter your search term here."
+                        yield Input.Option.Color IColor.IsPrimary
+                        yield Input.Value model.SearchText
+                        match model.SearchState with
+                        | Searching -> yield Input.Disabled true
+                        | NoSearchText | CanSearch -> ()
+                        yield Input.OnChange (fun e -> dispatch (SetSearchText e.Value)) ]
                     Icon.faIcon [ Icon.Size IsSmall; Icon.IsLeft ] [ Fa.icon Fa.I.Search ]                                 
+                ]
+                Help.help [ Help.Color IsInfo ] [
+                    match model.SearchMethod with
+                    | Normal -> yield str "Search for a property by street, town, postcode or district e.g. 'Tottenham'."
+                    | Location -> yield str "Enter a postcode to search by location e.g. 'EC2A 4NE'"
                 ]
             ]
             Column.column [ Column.Option.Width(Screen.All, Column.IsOneFifth) ] [
@@ -244,13 +250,17 @@ let viewSearchPanel model dispatch =
                 Dropdown.dropdown [ Dropdown.IsHoverable ] [
                     div [] [
                         Button.button [] [
-                            span [] [ str "Search Type" ]
+                            span [] [
+                                let icon = match model.SearchMethod with Normal -> Fa.I.Search | Location -> Fa.I.LocationArrow
+                                yield Icon.faIcon [ Icon.Size IsSmall ] [ Fa.icon icon ]
+                                yield span [] [ str "Search Type" ]
+                            ]
                             Icon.faIcon [ Icon.Size IsSmall ] [ Fa.icon Fa.I.AngleDown ]
                         ]
                         Dropdown.menu [ ] [
                             Dropdown.content [] [                                
-                                makeDropDownItem Normal model.SearchMethod Fa.I.Search (function | Normal -> true | _ -> false)
-                                makeDropDownItem Location model.SearchMethod Fa.I.LocationArrow (function | Location -> true | _ -> false)
+                                makeDropDownItem Normal model.SearchMethod Fa.I.Search (function Normal -> true | _ -> false)
+                                makeDropDownItem Location model.SearchMethod Fa.I.LocationArrow (function Location -> true | _ -> false)
                             ]
                         ]
                     ]
