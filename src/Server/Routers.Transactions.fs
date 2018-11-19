@@ -62,13 +62,13 @@ let uploadTransactions(ConnectionString storageConnection) =
                 yield "TransactionId", Encode.string (prop.TransactionId.ToString())
                 yield "Price", Encode.int prop.Price
                 yield "DateOfTransfer", Encode.datetime prop.Date
-                match prop.Postcode with Some p -> yield "PostCode", Encode.string p | _ -> ()
-                match prop.PropertyType |> Option.bind SafeSearch.PropertyType.Parse with Some p -> yield "PropertyType", Encode.string p.Description | _ -> ()
-                yield "Build", prop.Duration |> SafeSearch.BuildType.Parse |> fun s -> s.Description |> Encode.string
-                yield "Contract", prop.``Old/New`` |> SafeSearch.ContractType.Parse |> fun s -> s.Description |> Encode.string
+                yield "PostCode", Encode.string (prop.Postcode |> Option.toObj)
+                yield "PropertyType", Encode.string (prop.PropertyType |> Option.toObj)
+                yield "Build", Encode.string prop.Duration
+                yield "Contract", Encode.string prop.``Old/New``
                 yield "Building", [ Some prop.PAON; prop.SAON ] |> List.choose id |> String.concat " " |> Encode.string
-                match prop.Street with Some s -> yield "Street", s |> Encode.string | _ -> ()
-                match prop.Locality with Some s -> yield "Locality", Encode.string s | _ -> ()
+                yield "Street", Encode.string (prop.Street |> Option.toObj)
+                yield "Locality", Encode.string (prop.Locality |> Option.toObj)
                 yield "Town", Encode.string prop.``Town/City``
                 yield "District", Encode.string prop.District
                 yield "County", Encode.string prop.County

@@ -34,7 +34,13 @@ type PropertyType =
         | PropertyType.SemiDetached -> "Semi Detatch"
         | PropertyType.FlatsMaisonettes -> "Flats / Maisonettes"
         | _ -> string this
-    static member Parse = function "D" -> Some Detached | "S" -> Some SemiDetached | "T" -> Some Terraced | "F" -> Some FlatsMaisonettes | "O" -> Some Other | _ -> None
+    static member Parse = function
+        | "D" -> Some Detached
+        | "S" -> Some SemiDetached
+        | "T" -> Some Terraced
+        | "F" -> Some FlatsMaisonettes
+        | "O" -> Some Other
+        | _ -> None
 type BuildType =
     | NewBuild | OldBuild
     member this.Description =

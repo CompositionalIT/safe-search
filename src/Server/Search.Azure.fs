@@ -24,11 +24,6 @@ type SearchableProperty =
       [<IsFacetable; IsFilterable; IsSearchable>] District : string
       [<IsFacetable; IsFilterable; IsSearchable>] County : string
       [<IsFilterable; IsSortable>] Geo : GeographyPoint }
-    static member Default =
-        { PostCode = null; PropertyType = null; Build = null; Contract = null
-          Building = null; Street = null; Locality = null; Town = null
-          District = null; County = null; Price = Nullable(); DateOfTransfer = Nullable();
-          TransactionId = null; Geo = null }
 
 let suggesterName = "suggester"
 let indexName = "properties"
