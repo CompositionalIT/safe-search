@@ -3,7 +3,7 @@ namespace SafeSearch.Search
 open SafeSearch
 open System.Threading.Tasks
 
-type FindNearestRequest = { Postcode : string; MaxDistance : int; Page : int; Filter : PropertyFilter }
+type FindNearestRequest = { Geo : Geo; MaxDistance : int; Page : int; Filter : PropertyFilter }
 type FindGenericRequest = { Text : string option; Page : int; Filter : PropertyFilter; Sort : Sort }
 type SuggestRequest = { Text : string }
 type GeoPostcode =
@@ -14,7 +14,7 @@ type GeoPostcode =
 
 type ISearch =
     abstract GenericSearch : FindGenericRequest -> SearchResponse Task
-    abstract PostcodeSearch : FindNearestRequest -> ((Geo * SearchResponse) option) Task
+    abstract LocationSearch : FindNearestRequest -> SearchResponse Task
     abstract Suggest : SuggestRequest -> SuggestResponse Task
     abstract Documents : unit -> int64 Task
     abstract Clear : unit -> unit

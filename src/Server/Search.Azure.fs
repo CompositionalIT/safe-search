@@ -177,17 +177,13 @@ let findGeneric searchConfig request = task {
         |> doSearch searchConfig request.Page request.Text
     return searchResults |> toFindPropertiesResponse findFacet count request.Page }
 
-let findByPostcode config (tryGetGeo:string -> Task<Geo option>) request = task {
-    match! tryGetGeo request.Postcode with
-    | Some geo ->
-        let geo = GeographyPoint.Create(geo.Lat, geo.Long)
-        let! findFacet, searchResults, count =
-            findByDistance geo request.MaxDistance
-            |> applyFilters request.Filter
-            |> doSearch config request.Page None            
-        return Some ({ Lat = geo.Latitude; Long = geo.Longitude }, searchResults |> toFindPropertiesResponse findFacet count request.Page)
-    | None ->
-        return None }
+let findByPostcode config (request:FindNearestRequest) = task {
+    let geo = GeographyPoint.Create(request.Geo.Lat, request.Geo.Long)
+    let! findFacet, searchResults, count =
+        findByDistance geo request.MaxDistance
+        |> applyFilters request.Filter
+        |> doSearch config request.Page None            
+    return searchResults |> toFindPropertiesResponse findFacet count request.Page }
 
 let getDocumentSize searchConfig =
     let index = propertiesIndex searchConfig
@@ -198,10 +194,10 @@ let suggest config request = task {
     let! result = index.Documents.SuggestAsync(request.Text, suggesterName, SuggestParameters(Top = Nullable(10)))
     return { Suggestions = result.Results |> Seq.map (fun x -> x.Text) |> Seq.distinct |> Seq.toArray } }
 
-let searcher searchConfig storageConfig tryGetGeo =
+let searcher searchConfig storageConfig =
     { new Search.ISearch with
         member __.GenericSearch request = findGeneric searchConfig request
-        member __.PostcodeSearch request = findByPostcode searchConfig tryGetGeo request
+        member __.LocationSearch request = findByPostcode searchConfig request
         member __.Suggest request = suggest searchConfig request
         member __.Documents() = getDocumentSize searchConfig
         member __.Clear() = initialize ForceReset searchConfig storageConfig

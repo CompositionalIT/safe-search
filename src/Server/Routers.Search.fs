@@ -7,16 +7,17 @@ open Saturn
 open SafeSearch
 open SafeSearch.Search
 
-let searchProperties (searcher:Search.ISearch) (postCode:string, distance, page) next (ctx:HttpContext) = task {
-    let! resp =
-        searcher.PostcodeSearch
-            { Filter = ctx.BindQueryString<PropertyFilter>()
-              Postcode = postCode.ToUpper()
-              MaxDistance = distance
-              Page = page }
-    match resp with
-    | Some (geo, properties) -> return! json (geo, properties.Results) next ctx
-    | None -> return! HttpStatusCodeHandlers.RequestErrors.notFound (text "Could not locate geolocation for this property.") next ctx }
+let searchProperties (searcher:Search.ISearch) (tryGetGeo: string -> Geo option System.Threading.Tasks.Task) (postCode:string, distance, page) next (ctx:HttpContext) = task {
+    match! tryGetGeo postCode with
+    | None -> return! HttpStatusCodeHandlers.RequestErrors.notFound (text (sprintf "Could not locate geolocation for postcode %s." postCode)) next ctx
+    | Some geo ->
+        let! resp =
+            searcher.LocationSearch
+                { Filter = ctx.BindQueryString<PropertyFilter>()
+                  Geo = geo
+                  MaxDistance = distance
+                  Page = page }
+        return! json (geo, resp.Results) next ctx }
 
 let searchSuggest (searcher:Search.ISearch) text next (ctx:HttpContext) = task {
     let! properties = searcher.Suggest { Text = text }
@@ -34,8 +35,15 @@ let genericSearch (searcher:Search.ISearch) (text, page) next (ctx:HttpContext) 
     let! searchResponse = searcher.GenericSearch request
     return! json searchResponse.Results next ctx }
 
-let createRouter searcher = router {
+let geoLookup tryGetGeo postcode next ctx = task {
+    let! geo = tryGetGeo postcode
+    match geo with
+    | None -> return! HttpStatusCodeHandlers.RequestErrors.notFound (text (sprintf "Could not locate geolocation for postcode %s." postcode)) next ctx
+    | Some (geo:Geo) -> return! json geo next ctx }
+
+let createRouter searcher tryGetGeo = router {
     getf "find/%s/%i" (genericSearch searcher)
     getf "suggest/%s" (searchSuggest searcher)
-    getf "%s/%i/%i" (searchProperties searcher)
-    getf "%s/%i" (fun (postcode, distance) -> searchProperties searcher (postcode, distance, 0)) }
+    getf "geo/%s" (geoLookup tryGetGeo)
+    getf "%s/%i/%i" (searchProperties searcher tryGetGeo)
+    getf "%s/%i" (fun (postcode, distance) -> searchProperties searcher tryGetGeo (postcode, distance, 0)) }

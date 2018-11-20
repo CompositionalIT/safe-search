@@ -139,8 +139,10 @@ open Fable.Helpers.ReactGoogleMaps.Props
 
 let asCurrency = int64 >> Update.printNumber >> sprintf "£%s"
 
-let makeMap long lat container markers zoomLevel =
-    let center = Fable.Helpers.GoogleMaps.Literal.createLatLng long lat
+let makeMap (lat, long, originMarker) container markers zoomLevel =
+    printfn "origin %A" (lat, long)
+    let center = Fable.Helpers.GoogleMaps.Literal.createLatLng lat long
+
     Box.box' [] [
         googleMap [ 
             MapProperties.MapLoadingContainer "maploadercontainer"
@@ -148,7 +150,7 @@ let makeMap long lat container markers zoomLevel =
             MapProperties.DefaultCenter !^ center
             MapProperties.Center !^ center
             MapProperties.DefaultZoom zoomLevel
-            MapProperties.Markers markers
+            MapProperties.Markers (Array.append [| (originMarker center) |] markers)
         ]
     ]
 
@@ -219,32 +221,27 @@ let viewSearchResults model dispatch =
                             ]
                     ]
                 ]
-            | LocationResults(results, geo, ResultsMap) ->
+            | LocationResults(results, originGeo, ResultsMap) ->
                 let results =
                     results
                     |> Array.distinctBy(fun r -> r.Address.PostCode)
-                    |> Array.choose(fun r ->
-                        r.Address.GeoLocation
-                        |> Option.map(fun geo -> geo, r))
+                    |> Array.choose(fun r -> r.Address.GeoLocation |> Option.map(fun geo -> geo, r))
                 let markers =
-                    let youAreHere =
+                    results
+                    |> Array.mapi(fun i (geo, result) ->
                         marker [
-                            MarkerProperties.Key "YOUAREHERE"
+                            MarkerProperties.Key (string result.Address.PostCode)
                             MarkerProperties.Position !^ (Fable.Helpers.GoogleMaps.Literal.createLatLng geo.Lat geo.Long)
-                            MarkerProperties.Icon ("images/you.png")
-                            MarkerProperties.Title (sprintf "You are here") ] []
+                            MarkerProperties.Icon ("images/house.png")
+                            MarkerProperties.Title (sprintf "%d. %s (%s)" (i + 1) (result.Address.Street |> Option.defaultValue result.Address.Building) (result.Price |> asCurrency)) ] [])
 
-                    let properties =
-                        results
-                        |> Array.mapi(fun i (geo, result) ->
-                            marker [
-                                MarkerProperties.Key (string result.Address.PostCode)
-                                MarkerProperties.Position !^ (Fable.Helpers.GoogleMaps.Literal.createLatLng geo.Lat geo.Long)
-                                MarkerProperties.Icon ("images/house.png")
-                                MarkerProperties.Title (sprintf "%d. %s (%s)" (i + 1) (result.Address.Street |> Option.defaultValue result.Address.Building) (result.Price |> asCurrency)) ] [])
-                    Array.append [| youAreHere |] properties
-
-                yield makeMap geo.Lat geo.Long "largeMapcontainer" markers 16
+                let originMarker location =
+                    marker [
+                        MarkerProperties.Key "YOUAREHERE"
+                        MarkerProperties.Position !^ location 
+                        MarkerProperties.Icon ("images/you.png")
+                        MarkerProperties.Title (sprintf "You are here") ] []
+                yield makeMap (originGeo.Lat, originGeo.Long, originMarker) "largeMapcontainer" markers 16
         ]
         
 let viewModalProperty (propertyResult:PropertyResult) closeModal =
@@ -284,7 +281,13 @@ let viewModalProperty (propertyResult:PropertyResult) closeModal =
                 ]
                 Section.section [] [
                     match propertyResult.Address.GeoLocation with
-                    | Some geo -> yield makeMap geo.Lat geo.Long "mapcontainer" [] 12
+                    | Some geo ->
+                        let originMarker location =
+                            marker [
+                                MarkerProperties.Key "PROPERTY"
+                                MarkerProperties.Position !^ location 
+                                MarkerProperties.Icon ("images/house.png") ] []
+                        yield makeMap (geo.Lat, geo.Long, originMarker) "mapcontainer" Array.empty 17
                     | None -> ()
                 ]
             ]
