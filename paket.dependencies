@@ -1,3 +1,5 @@
+source https://www.nuget.org/api/v2
+
 group Server
     source https://api.nuget.org/v3/index.json
     framework: netcoreapp2.1
@@ -23,6 +25,7 @@ nuget Elmish.Toastr
     nuget Fable.Elmish.React ~> 2
     nuget Fable.Elmish.HMR ~> 2
     nuget Fable.React ~> 4
+    nuget Fable.ReactGoogleMaps
     nuget Fulma ~> 1
 
     clitool dotnet-fable ~> 2

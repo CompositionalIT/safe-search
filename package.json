@@ -18,7 +18,9 @@
         "whatwg-fetch": "^3.0.0"
     },
     "dependencies": {
+        "@babel/plugin-proposal-class-properties": "^7.1.0",
         "css-loader": "^1.0.1",
+        "react-google-maps": "^9.4.5",
         "style-loader": "^0.23.1",
         "toastr": "^2.1.4"
     }

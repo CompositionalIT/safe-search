@@ -53,7 +53,9 @@ type ContractType =
     | Freehold | Leasehold
     member this.Description = string this
     static member Parse = function "F" -> Freehold | _ -> Leasehold
-  
+
+type Geo = { Lat : float; Long : float }
+
 type Address =
     { Building : string
       Street : string option
@@ -61,7 +63,8 @@ type Address =
       TownCity : string
       District : string
       County : string
-      PostCode : string option }
+      PostCode : string option
+      GeoLocation : Geo option }
     member address.FirstLine =
       [ Some address.Building; address.Street ]
       |> List.choose id

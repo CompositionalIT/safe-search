@@ -36,7 +36,9 @@ var CONFIG = {
                 "useBuiltIns": "usage",
             }]
         ],
-        plugins: ["@babel/plugin-transform-runtime"]
+        plugins: [
+            "@babel/plugin-transform-runtime",
+            "@babel/plugin-proposal-class-properties" ]
     }
 }
 

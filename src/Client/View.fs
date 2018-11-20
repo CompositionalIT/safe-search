@@ -131,10 +131,9 @@ let viewSearchPanel model dispatch =
             ]
         ]
     ]
-
 let asCurrency = int64 >> Update.printNumber >> sprintf "£%s"
 let viewSearchResults model dispatch =
-    match model.SearchResults with
+    match model.SearchResults.Results with
     | [||] ->
         Container.container [ ] [
             Heading.h3 [ Heading.Modifiers [ Modifier.TextAlignment(Screen.All, TextAlignment.Centered) ] ] [
@@ -154,45 +153,74 @@ let viewSearchResults model dispatch =
                   | _ -> ()
               | Location -> yield basicBuilder name ]
         Container.container [ ] [
-            Heading.h3 [] [ str "Results" ]
-            Table.table [ Table.IsFullWidth; Table.IsBordered; Table.IsHoverable; Table.IsStriped ] [
-                thead [] [
-                    tr [] [
-                        yield th [ Style [ Width "1px" ] ] []
-                        let maybeSortableColumn = maybeSortableColumn model.SearchMethod
-                        yield th [ Style [ Width "1px" ] ] (maybeSortableColumn str sortableColumn "Date" model.Sorting)
-                        yield th [ Style [ Width "1px" ] ] (maybeSortableColumn str sortableColumn "Price" model.Sorting)
-                        yield th [] (maybeSortableColumn str sortableColumn "Street" model.Sorting)
-                        yield th [] (maybeSortableColumn str sortableColumn "Town" model.Sorting)
-                        yield th [] [ str "County" ]
-                        yield th [] [ str "Postcode" ]
+            yield Heading.h3 [] [ str "Results" ]
+            yield Tabs.tabs [ Tabs.Size IsLarge; Tabs.IsBoxed ] [
+                let makeTab active icon text viewType =
+                    Tabs.tab [ Tabs.Tab.IsActive active ] [ a [ OnClick(fun _ -> dispatch (ChangeView viewType)) ] [ Icon.faIcon [ Icon.Modifiers [ Modifier.TextColor IColor.IsPrimary ] ] [ Fa.icon icon ]; str text ] ]
+                yield makeTab (model.SearchResults.View = ResultsList) Fa.I.List "List" ResultsList
+                match model.SearchResults.SearchUsed with
+                | Location -> yield makeTab (model.SearchResults.View = ResultsMap) Fa.I.Map "Map" ResultsMap
+                | Standard -> ()
+            ]
+
+            match model.SearchResults.View with
+            | ResultsList ->
+                yield Table.table [ Table.IsFullWidth; Table.IsBordered; Table.IsHoverable; Table.IsStriped ] [
+                    thead [] [
+                        tr [] [
+                            yield th [ Style [ Width "1px" ] ] []
+                            let maybeSortableColumn = maybeSortableColumn model.SearchResults.SearchUsed
+                            yield th [ Style [ Width "1px" ] ] (maybeSortableColumn str sortableColumn "Date" model.Sorting)
+                            yield th [ Style [ Width "1px" ] ] (maybeSortableColumn str sortableColumn "Price" model.Sorting)
+                            yield th [] (maybeSortableColumn str sortableColumn "Street" model.Sorting)
+                            yield th [] (maybeSortableColumn str sortableColumn "Town" model.Sorting)
+                            yield th [] [ str "County" ]
+                            yield th [] [ str "Postcode" ]
+                        ]
+                    ]
+                    tbody [] [
+                        for result in results ->
+                            tr [] [
+                                td [] [
+                                    Icon.faIcon [
+                                        Icon.Option.Props [
+                                            OnClick(fun _ -> dispatch (SelectProperty result))
+                                            Style [ Cursor "pointer" ]
+                                        ]
+                                        Icon.Modifiers [ Modifier.TextColor IColor.IsInfo ] ] [
+                                        Fa.icon Fa.I.InfoCircle ]
+                                ]
+                                td [] [ str (result.DateOfTransfer.Date.ToShortDateString()) ]
+                                td [ Style [ TextAlign "right" ] ] [ str (asCurrency result.Price) ]
+                                td [ Style [ WhiteSpace "nowrap" ] ] [ result.Address.Street |> Option.defaultValue "" |> str ]
+                                td [ Style [ WhiteSpace "nowrap" ] ] [ str result.Address.TownCity ]
+                                td [ Style [ WhiteSpace "nowrap" ] ] [ str result.Address.County ]
+                                td [ Style [ WhiteSpace "nowrap" ] ] [ result.Address.PostCode |> Option.defaultValue "" |> str ]
+                            ]
                     ]
                 ]
-                tbody [] [
-                    for result in results ->
-                        tr [] [
-                            td [] [
-                                Icon.faIcon [
-                                    Icon.Option.Props [
-                                        OnClick(fun _ -> dispatch (SelectProperty result))
-                                        Style [ Cursor "pointer" ]
-                                    ]
-                                    Icon.Modifiers [ Modifier.TextColor IColor.IsInfo ] ] [
-                                    Fa.icon Fa.I.InfoCircle ]
-                            ]
-                            td [] [ str (result.DateOfTransfer.Date.ToShortDateString()) ]
-                            td [ Style [ TextAlign "right" ] ] [ str (asCurrency result.Price) ]
-                            td [ Style [ WhiteSpace "nowrap" ] ] [ result.Address.Street |> Option.defaultValue "" |> str ]
-                            td [ Style [ WhiteSpace "nowrap" ] ] [ str result.Address.TownCity ]
-                            td [ Style [ WhiteSpace "nowrap" ] ] [ str result.Address.County ]
-                            td [ Style [ WhiteSpace "nowrap" ] ] [ result.Address.PostCode |> Option.defaultValue "" |> str ]
-                        ]
-                ]
-            ]
+            | ResultsMap -> ()            
         ]
 
+open Fable.Core.JsInterop
+open Fable.Helpers.ReactGoogleMaps
+open Fable.Helpers.ReactGoogleMaps.Props
+
+
+let makeMap long lat =
+    let center:Fable.Import.GoogleMaps.LatLngLiteral = Fable.Helpers.GoogleMaps.Literal.createLatLng long lat
+    Box.box' [] [
+        googleMap [ 
+            MapProperties.MapLoadingContainer "maploadercontainer"
+            MapProperties.MapContainer "mapcontainer"
+            MapProperties.DefaultZoom 12
+            MapProperties.DefaultCenter !^ center
+            MapProperties.Center !^ center
+        ]
+    ]
+        
 let viewModalProperty (propertyResult:PropertyResult) closeModal =
-    let kv label values = 
+    let propField label values = 
         Field.div [ Field.IsHorizontal ] [
             Field.label [ Field.Label.IsNormal ] [ Label.label [ ] [ str label ] ]
             Field.body [ ] [
@@ -209,22 +237,25 @@ let viewModalProperty (propertyResult:PropertyResult) closeModal =
             ]
             Modal.Card.body [] [
                 form [ ] [
-                    kv "Street" [ propertyResult.Address.Street ]
-                    kv "Town" [
+                    propField "Street" [ propertyResult.Address.Street ]
+                    propField "Town" [
                         Some propertyResult.Address.TownCity
                         Some propertyResult.Address.County
                     ]
-                    kv "Region" [
+                    propField "Region" [
                         Some propertyResult.Address.District
                         propertyResult.Address.PostCode ]
-                    kv "Date & Price" [
+                    propField "Date & Price" [
                         Some (propertyResult.DateOfTransfer.ToString("ddd/MM/yyyy"))
                         Some (propertyResult.Price |> asCurrency)
                     ]
-                    kv "Build" [
+                    propField "Build" [
                         Some (string propertyResult.BuildDetails.Contract)
                         propertyResult.BuildDetails.PropertyType |> Option.map string
                     ]
+                ]
+                Section.section [] [
+                    makeMap propertyResult.Address.GeoLocation.Value.Lat propertyResult.Address.GeoLocation.Value.Long
                 ]
             ]
             Modal.Card.foot [ ] [
@@ -239,7 +270,7 @@ let view model dispatch =
     div [] [
         yield viewNavBar model (IndexMsg >> dispatch)
         let searchPanelOpts =
-            match model.Search.SearchResults with
+            match model.Search.SearchResults.Results with
             | [||] -> [ Section.IsLarge ]
             | _ -> []
         yield Section.section searchPanelOpts [ viewSearchPanel model.Search (SearchMsg >> dispatch) ]

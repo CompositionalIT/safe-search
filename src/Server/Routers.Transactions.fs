@@ -108,5 +108,5 @@ let getStats (searcher:ISearch) next ctx = task {
     return! json indexStats next ctx }
 
 let createRouter searcher storageConnection = router {
-    get "ingest" (ingest searcher storageConnection)
+    get "import" (ingest searcher storageConnection)
     get "stats" (getStats searcher) }

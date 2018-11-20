@@ -3,11 +3,17 @@ namespace SafeSearch
 type SearchState = CanSearch | NoSearchText | Searching
 type IndexName = PostcodeIndex | TransactionsIndex member this.Endpoint = match this with PostcodeIndex -> "postcodes" | TransactionsIndex -> "transactions"
 type SearchMethod = Standard | Location
+type ResultsView = ResultsList | ResultsMap
+
+type SearchResults =
+  { SearchUsed : SearchMethod
+    Results : PropertyResult array
+    View : ResultsView }
 
 type SearchDetails =
     { SearchText : string
       SearchState : SearchState
-      SearchResults: PropertyResult array
+      SearchResults: SearchResults
       SearchMethod : SearchMethod
       SelectedProperty : PropertyResult option
       Sorting : Sort }
@@ -31,6 +37,7 @@ type SearchMsg =
 | SetSearchMethod of SearchMethod
 | SelectProperty of PropertyResult
 | DeselectProperty
+| ChangeView of ResultsView
 
 type Msg =
 | IndexMsg of IndexMsg

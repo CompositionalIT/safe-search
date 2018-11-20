@@ -144,7 +144,13 @@ let private toFindPropertiesResponse findFacet count page results =
                    TownCity = result.Town
                    District = result.District
                    County = result.County
-                   PostCode = result.PostCode |> Option.ofObj }
+                   PostCode = result.PostCode |> Option.ofObj
+                   GeoLocation =
+                        result.Geo
+                        |> Option.ofObj
+                        |> Option.map(fun geo ->
+                            { Lat = geo.Latitude
+                              Long = geo.Longitude }) }
                Price = result.Price |> Option.ofNullable |> Option.defaultValue 0
                DateOfTransfer = result.DateOfTransfer |> Option.ofNullable |> Option.defaultValue DateTime.MinValue })
       TotalTransactions = count

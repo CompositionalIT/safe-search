@@ -38,7 +38,7 @@ module Server =
 
 let defaultModel =
     { Search =
-        { SearchResults = [||]
+        { SearchResults = { SearchUsed = Standard; Results = [||]; View = ResultsList }
           SearchMethod = Standard
           SearchText = ""
           SearchState = NoSearchText
@@ -59,7 +59,7 @@ let updateIndexMsg msg model =
         { model with IndexStats = model.IndexStats |> Map.add index.Endpoint stats; Refreshing = false }, Cmd.none
     | StartIndexing index ->
         let cmd =
-            Cmd.ofPromise (fetchAs (sprintf "api/%s/ingest" index.Endpoint) Decode.int64) [] ((fun rows -> StartedIndexing(index, rows)) >> IndexMsg) ErrorOccurred
+            Cmd.ofPromise (fetchAs (sprintf "api/%s/import" index.Endpoint) Decode.int64) [] ((fun rows -> StartedIndexing(index, rows)) >> IndexMsg) ErrorOccurred
         { model with IndexStats = model.IndexStats |> Map.add index.Endpoint { Status = Indexing 0; DocumentCount = 0L }; Refreshing = false }, cmd
     | StartedIndexing (index, documents) ->
         let messageCmd =
@@ -72,7 +72,7 @@ let updateSearchMsg msg model =
     match msg with
     | FoundProperties searchResponse ->
         { model with
-            SearchResults = searchResponse
+            SearchResults = { SearchUsed = model.SearchMethod; Results = searchResponse; View = ResultsList }
             SearchState = CanSearch }, Cmd.none
     | SetSearchText text ->
         { model with
@@ -103,6 +103,8 @@ let updateSearchMsg msg model =
         { model with SelectedProperty = Some selectedProperty }, Cmd.none
     | DeselectProperty ->
         { model with SelectedProperty = None }, Cmd.none
+    | ChangeView view ->
+        { model with SearchResults = { model.SearchResults with View = view } }, Cmd.none
 
 let update msg model =
     match msg with
