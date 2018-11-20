@@ -5,7 +5,7 @@ open Fable.Helpers.React.Props
 open Fulma
 open Fulma.FontAwesome
 
-let viewNavBar model dispatch =
+let createNavBar model dispatch =
     Navbar.navbar [] [
         Navbar.Brand.a [ GenericOption.Props [ Href "https://safe-stack.github.io/docs/" ] ] [
             Navbar.Item.div [] [
@@ -65,7 +65,7 @@ let viewNavBar model dispatch =
         ]
     ]
 
-let viewSearchPanel model dispatch =
+let createSearchPanel model dispatch =
     let makeDropDownItem searchMethod currentSearchMethod icon isActive =
         Dropdown.Item.a [ Dropdown.Item.IsActive (isActive currentSearchMethod)
                           Dropdown.Item.Props [ OnClick(fun _ -> dispatch (SetSearchMethod searchMethod)) ] ] [
@@ -80,22 +80,42 @@ let viewSearchPanel model dispatch =
         Heading.h5 [ Heading.IsSubtitle ] [ str "Find your unaffordable property in the UK!" ]
         Columns.columns [] [
             Column.column [ Column.Option.Width(Screen.All, Column.IsThreeFifths) ] [
-                Control.div [ Control.HasIconLeft ] [
+                yield Control.div [ Control.HasIconLeft ] [
                     Input.text [
                         yield Input.Option.Placeholder "Enter your search term here."
-                        yield Input.Option.Color IColor.IsPrimary
+                        match model.FindFailure with
+                        | Some _ -> yield Input.Option.Color IColor.IsDanger
+                        | None -> yield Input.Option.Color IColor.IsPrimary
                         yield Input.Value model.SearchText
                         match model.SearchState with
                         | Searching -> yield Input.Disabled true
                         | NoSearchText | CanSearch -> ()
-                        yield Input.OnChange (fun e -> dispatch (SetSearchText e.Value)) ]
-                    Icon.faIcon [ Icon.Size IsSmall; Icon.IsLeft ] [ Fa.icon Fa.I.Search ]                                 
+                        yield Input.OnChange (fun e -> dispatch (SearchTextMsg(SetSearchText e.Value))) ]
+                    Icon.faIcon [ Icon.Size IsSmall; Icon.IsLeft ] [ Fa.icon Fa.I.Search ] 
                 ]
-                Help.help [ Help.Color IsInfo ] [
-                    match model.SelectedSearchMethod with
-                    | Standard -> yield str "Search for a property by street, town, postcode or district e.g. 'Tottenham'."
-                    | Location -> yield str "Enter a postcode to search by location e.g. 'EC2A 4NE'"
+                yield Dropdown.dropdown [ Dropdown.IsActive (not (Array.isEmpty model.Suggestions)) ] [
+                    Dropdown.menu [] [
+                        Dropdown.content [] [
+                            for suggestion in model.Suggestions do
+                                yield Dropdown.Item.a [
+                                    Dropdown.Item.Props [
+                                        OnClick(fun _ ->
+                                            dispatch (SearchTextMsg(SetTextAndSearch(suggestion, model.SelectedSearchMethod)))
+                                            dispatch FindProperties)
+                                    ]
+                                ] [ str suggestion ]
+                        ]
+                    ]                               
                 ]
+                match model.FindFailure with
+                | Some error ->
+                    yield Help.help [ Help.Color IsDanger ] [ str error ]
+                | None ->
+                    yield Help.help [ Help.Color IsInfo ] [
+                        match model.SelectedSearchMethod with
+                        | Standard -> yield str "Search for a property by street, town, postcode or district e.g. 'Tottenham'."
+                        | Location -> yield str "Enter a postcode to search by location e.g. 'EC2A 4NE'"
+                    ]
             ]
             Column.column [ Column.Option.Width(Screen.All, Column.IsOneFifth) ] [
                 Button.a [ yield Button.IsFullWidth
@@ -154,7 +174,7 @@ let makeMap (lat, long, originMarker) container markers zoomLevel =
         ]
     ]
 
-let viewSearchResults model dispatch =
+let createSearchResults model dispatch =
     match model.SearchResults.Results with
     | [||] ->
         Container.container [ ] [
@@ -218,7 +238,7 @@ let viewSearchResults model dispatch =
                                 yield td [ Style [ WhiteSpace "nowrap" ] ] [ str result.Address.TownCity ]
                                 yield td [ Style [ WhiteSpace "nowrap" ] ] [ str result.Address.County ]
                                 match result.Address.PostCode with
-                                | Some postcode -> yield td [ Style [ WhiteSpace "nowrap" ] ] [ a [ OnClick(fun _ -> dispatch (SearchPostcode postcode)) ] [ str postcode ] ]
+                                | Some postcode -> yield td [ Style [ WhiteSpace "nowrap" ] ] [ a [ OnClick(fun _ -> dispatch (SearchTextMsg(SetTextAndSearch(postcode, Location)))) ] [ str postcode ] ]
                                 | None -> yield td [] []
                             ]
                     ]
@@ -252,7 +272,7 @@ let viewSearchResults model dispatch =
                 yield makeMap (originGeo.Lat, originGeo.Long, originMarker) "largeMapcontainer" markers 16
         ]
         
-let viewModalProperty (propertyResult:PropertyResult) closeModal =
+let createPropertyPopup (propertyResult:PropertyResult) closeModal =
     let propField label values = 
         Field.div [ Field.IsHorizontal ] [
             Field.label [ Field.Label.IsNormal ] [ Label.label [ ] [ str label ] ]
@@ -315,14 +335,14 @@ let viewModalProperty (propertyResult:PropertyResult) closeModal =
 
 let view model dispatch =
     div [] [
-        yield viewNavBar model (IndexMsg >> dispatch)
+        yield createNavBar model (IndexMsg >> dispatch)
         let searchPanelOpts =
             match model.Search.SearchResults.Results with
             | [||] -> [ Section.IsLarge ]
             | _ -> []
-        yield Section.section searchPanelOpts [ viewSearchPanel model.Search (SearchMsg >> dispatch) ]
-        yield section [] [ viewSearchResults model.Search (SearchMsg >> dispatch) ]
+        yield Section.section searchPanelOpts [ createSearchPanel model.Search (SearchMsg >> dispatch) ]
+        yield section [] [ createSearchResults model.Search (SearchMsg >> dispatch) ]
         match model.Search.SelectedProperty with
-        | Some selectedProperty -> yield viewModalProperty selectedProperty (fun _ -> dispatch (SearchMsg DeselectProperty))
+        | Some selectedProperty -> yield createPropertyPopup selectedProperty (fun _ -> dispatch (SearchMsg DeselectProperty))
         | None -> ()
     ]

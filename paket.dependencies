@@ -18,7 +18,8 @@ group Client
     framework: netstandard2.0
     storage: none
 
-nuget Elmish.Toastr
+    nuget Thoth.Elmish
+    nuget Elmish.Toastr
     nuget Fable.Core ~> 2
     nuget Fable.Elmish ~> 2
     nuget Fable.Elmish.Debugger ~> 2

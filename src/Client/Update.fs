@@ -4,6 +4,8 @@ open Elmish
 open Elmish.Toastr
 open Fable.PowerPack.Fetch
 open Thoth.Json
+open Thoth.Elmish
+open System
 
 let printNumber (n:int64) =
     let chars =
@@ -19,26 +21,35 @@ let printNumber (n:int64) =
 
 module Server =
     let private standardResponseDecoder = Decode.Auto.generateDecoder<PropertyResult array>()
-    let private locationResponseDecoder = Decode.Auto.generateDecoder<Geo * PropertyResult array>()
-    let private loadProperties decoder onSuccess uri page sort  =
+    let private locationResponseDecoder = Decode.Auto.generateDecoder<Result<Geo * (PropertyResult array), string>>()
+    let private loadProperties decoder (onSuccess:_ -> Result<SearchResultType, string>) uri page sort  =
         let uri =
             let uri = sprintf "/api/search/%s/%i" uri page
             match sort with
             | { SortColumn = Some column; SortDirection = Some direction } -> sprintf "%s?SortColumn=%s&SortDirection=%O" uri column direction
             | { SortColumn = Some column; SortDirection = None } -> sprintf "%s?SortColumn=%s" uri column
             | _ -> uri        
+        let handleResult = function Ok msg -> FoundProperties msg | Error msg -> FoundFailed msg
+        Cmd.ofPromise (fetchAs uri decoder) [] (onSuccess >> handleResult >> SearchMsg) ErrorOccurred
 
-        Cmd.ofPromise (fetchAs uri decoder) [] (onSuccess >> FoundProperties >> SearchMsg) ErrorOccurred
-
-    let loadPropertiesNormal = sprintf "standard/%s" >> loadProperties standardResponseDecoder StandardResults
+    let loadPropertiesNormal = sprintf "standard/%s" >> loadProperties standardResponseDecoder (StandardResults >> Ok)
     let loadPropertiesLocation (postcode, distance, view) =
         sprintf "geo/%s/%d" postcode distance
-        |> loadProperties locationResponseDecoder
-            (fun (geo, results) -> LocationResults(results, geo, view))
-
+        |> loadProperties locationResponseDecoder (Result.map(fun (geo, results) -> LocationResults(results, geo, view)))
     let loadAllStats =
-        let loadStats (index:IndexName) = Cmd.ofPromise (fetchAs (sprintf "/api/%s/stats" index.Endpoint) (Decode.Auto.generateDecoder())) [] ((fun stats -> LoadedIndexStats(index, stats)) >> IndexMsg) ErrorOccurred
+        let loadStats (index:IndexName) =
+            Cmd.ofPromise
+                (fetchAs (sprintf "/api/%s/stats" index.Endpoint) (Decode.Auto.generateDecoder()))
+                []
+                ((fun stats -> LoadedIndexStats(index, stats)) >> IndexMsg)
+                ErrorOccurred
         Cmd.batch [ loadStats PostcodeIndex; loadStats TransactionsIndex ]
+    let getSuggestions text =
+        Cmd.ofPromise
+            (fetchAs (sprintf "/api/search/suggest/%s" text) (Decode.Auto.generateDecoder()))
+            []
+            (FetchedSuggestions >> SearchTextMsg >> SearchMsg)
+            ErrorOccurred
 
 let defaultModel =
     { Search =
@@ -47,9 +58,12 @@ let defaultModel =
           SearchText = ""
           SearchState = NoSearchText
           SelectedProperty = None
+          FindFailure = None
+          Suggestions = [||]
           Sorting =
             { SortDirection = Some Descending
-              SortColumn = Some "Date" } }
+              SortColumn = Some "Date" }
+          Debouncer = Debouncer.create() }
       IndexStats = Map []
       Refreshing = false }
 
@@ -72,6 +86,45 @@ let updateIndexMsg msg model =
             |> Toastr.info
         model, Cmd.batch [ Server.loadAllStats; messageCmd ]
 
+let updateSearchTextMsg msg model =
+    match msg with
+    | SetSearchText text ->
+        let debouncerModel, debouncerCmd =
+            model.Debouncer |> Debouncer.bounce (TimeSpan.FromSeconds 1.0) "user_input" FetchSuggestions
+        { model with
+            SearchText = text
+            Suggestions = [||]
+            FindFailure = None
+            SearchState =
+                if System.String.IsNullOrWhiteSpace text then NoSearchText
+                else CanSearch
+            Debouncer = debouncerModel },
+            Cmd.map DebouncerSelfMsg debouncerCmd |> Cmd.map (SearchTextMsg >> SearchMsg)        
+    | DebouncerSelfMsg debouncerMsg ->
+        let debouncerModel, debouncerCmd = Debouncer.update debouncerMsg model.Debouncer
+        { model with Debouncer = debouncerModel }, debouncerCmd |> Cmd.map (SearchTextMsg >> SearchMsg)
+    | FetchSuggestions ->
+        if not (String.IsNullOrWhiteSpace model.SearchText) then
+            model, (Server.getSuggestions model.SearchText)
+        else model, Cmd.none        
+    | FetchedSuggestions response ->
+        match model.SelectedSearchMethod with
+        | Standard -> { model with Suggestions = response.Suggestions }, Cmd.none
+        | Location -> model, Cmd.none
+    | ClearSuggestions ->
+        { model with Suggestions = [||] }, Cmd.none
+    | SetTextAndSearch(text, searchMethod) ->
+        { model with
+            SearchText =
+                match searchMethod with
+                | Location -> text
+                | Standard -> sprintf "\"%s\"" text
+            Suggestions = [||]
+            SearchState =
+                if System.String.IsNullOrWhiteSpace text then NoSearchText
+                else CanSearch
+            SelectedSearchMethod = searchMethod }, Cmd.ofMsg (SearchMsg FindProperties)
+
 let updateSearchMsg msg model =
     match msg with
     | FindProperties ->
@@ -85,14 +138,14 @@ let updateSearchMsg msg model =
         { model with
             SearchResults = results
             SearchState = CanSearch }, Cmd.none
-    | SetSearchText text ->
+    | FoundFailed msg ->
         { model with
-            SearchText = text
-            SearchState =
-                if System.String.IsNullOrWhiteSpace text then NoSearchText
-                else CanSearch }, Cmd.none
+            SearchState = CanSearch
+            FindFailure = Some msg }, Cmd.none
+    | SearchTextMsg msg ->
+        updateSearchTextMsg msg model
     | SetSearchMethod method ->
-        { model with SelectedSearchMethod = method }, Cmd.none
+        { model with SelectedSearchMethod = method }, Cmd.ofMsg (SearchMsg(SearchTextMsg ClearSuggestions))
     | SetSorting column ->
         let model =
             let sort =
@@ -112,11 +165,6 @@ let updateSearchMsg msg model =
         | StandardResults _ -> model, Cmd.none
         | LocationResults (props, geo, _) ->
             { model with SearchResults = LocationResults(props, geo, view) }, Cmd.none
-    | SearchPostcode postcode ->
-        { model with
-            SearchText = postcode
-            SelectedSearchMethod = SearchMethod.Location }, Cmd.ofMsg (SearchMsg FindProperties)
-
 let update msg model =
     match msg with
     | IndexMsg msg -> updateIndexMsg msg model

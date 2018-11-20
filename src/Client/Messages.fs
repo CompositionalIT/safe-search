@@ -1,5 +1,7 @@
 namespace SafeSearch
 
+open Thoth.Elmish
+
 type SearchState = CanSearch | NoSearchText | Searching
 type IndexName = PostcodeIndex | TransactionsIndex member this.Endpoint = match this with PostcodeIndex -> "postcodes" | TransactionsIndex -> "transactions"
 type SearchMethod = Standard | Location
@@ -20,9 +22,12 @@ type SearchDetails =
     { SearchText : string
       SearchState : SearchState
       SearchResults: SearchResultType
+      FindFailure : string option
       SelectedSearchMethod : SearchMethod
       SelectedProperty : PropertyResult option
-      Sorting : Sort }
+      Sorting : Sort
+      Suggestions : string array
+      Debouncer : Debouncer.State }
 
 type Model =
     { Search : SearchDetails
@@ -35,16 +40,26 @@ type IndexMsg =
 | StartIndexing of IndexName
 | StartedIndexing of IndexName * int64
 
+type TextChangeSource = User | System
+
+type SearchTextMsg =
+| SetSearchText of string
+| DebouncerSelfMsg of SearchTextMsg Debouncer.SelfMessage
+| FetchSuggestions
+| FetchedSuggestions of SuggestResponse
+| SetTextAndSearch of string * SearchMethod
+| ClearSuggestions
+
 type SearchMsg =
 | FindProperties
 | FoundProperties of SearchResultType
-| SetSearchText of string
 | SetSorting of string
 | SetSearchMethod of SearchMethod
+| SearchTextMsg of SearchTextMsg
 | SelectProperty of PropertyResult
 | DeselectProperty
 | ChangeView of ResultsView
-| SearchPostcode of string
+| FoundFailed of error:string
 
 type Msg =
 | IndexMsg of IndexMsg
