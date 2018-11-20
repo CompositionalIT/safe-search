@@ -18,11 +18,11 @@ let printNumber (n:int64) =
     System.String(chars)
 
 module Server =
-    let standardResponseDecoder = Decode.Auto.generateDecoder<PropertyResult array>()
-    let locationResponseDecoder = Decode.Auto.generateDecoder<Geo * PropertyResult array>()
-    let loadProperties decoder onSuccess uri page sort  =
+    let private standardResponseDecoder = Decode.Auto.generateDecoder<PropertyResult array>()
+    let private locationResponseDecoder = Decode.Auto.generateDecoder<Geo * PropertyResult array>()
+    let private loadProperties decoder onSuccess uri page sort  =
         let uri =
-            let uri = sprintf "/api/%s/%i" uri page
+            let uri = sprintf "/api/search/%s/%i" uri page
             match sort with
             | { SortColumn = Some column; SortDirection = Some direction } -> sprintf "%s?SortColumn=%s&SortDirection=%O" uri column direction
             | { SortColumn = Some column; SortDirection = None } -> sprintf "%s?SortColumn=%s" uri column
@@ -30,9 +30,9 @@ module Server =
 
         Cmd.ofPromise (fetchAs uri decoder) [] (onSuccess >> FoundProperties >> SearchMsg) ErrorOccurred
 
-    let loadPropertiesNormal = sprintf "property/find/%s" >> loadProperties standardResponseDecoder StandardResults
+    let loadPropertiesNormal = sprintf "standard/%s" >> loadProperties standardResponseDecoder StandardResults
     let loadPropertiesLocation (postcode, distance, view) =
-        sprintf "property/%s/%d" postcode distance
+        sprintf "geo/%s/%d" postcode distance
         |> loadProperties locationResponseDecoder
             (fun (geo, results) -> LocationResults(results, geo, view))
 

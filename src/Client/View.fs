@@ -178,7 +178,7 @@ let viewSearchResults model dispatch =
             yield Heading.h3 [] [ str "Results" ]
             yield Tabs.tabs [ Tabs.Size IsLarge; Tabs.IsBoxed ] [
                 let makeTab active icon text viewType =
-                    Tabs.tab [ Tabs.Tab.IsActive active ] [ a [ OnClick(fun _ -> dispatch (ChangeView viewType)) ] [ Icon.faIcon [ Icon.Modifiers [ Modifier.TextColor IColor.IsPrimary ] ] [ Fa.icon icon ]; str text ] ]
+                    Tabs.tab [ Tabs.Tab.IsActive active ] [ a [ OnClick(fun _ -> dispatch (ChangeView viewType)) ] [ Icon.faIcon [ Icon.Modifiers [ ] ] [ Fa.icon icon ]; str text ] ]
                 yield makeTab (model.SearchResults.CurrentView = ResultsList) Fa.I.List "List" ResultsList
                 match model.SearchResults with
                 | LocationResults _ -> yield makeTab (model.SearchResults.CurrentView = ResultsMap) Fa.I.Map "Map" ResultsMap
@@ -219,7 +219,7 @@ let viewSearchResults model dispatch =
                                 yield td [ Style [ WhiteSpace "nowrap" ] ] [ str result.Address.County ]
                                 match result.Address.PostCode with
                                 | Some postcode -> yield td [ Style [ WhiteSpace "nowrap" ] ] [ a [ OnClick(fun _ -> dispatch (SearchPostcode postcode)) ] [ str postcode ] ]
-                                | None -> ()
+                                | None -> yield td [] []
                             ]
                     ]
                 ]
@@ -256,9 +256,11 @@ let viewModalProperty (propertyResult:PropertyResult) closeModal =
     let propField label values = 
         Field.div [ Field.IsHorizontal ] [
             Field.label [ Field.Label.IsNormal ] [ Label.label [ ] [ str label ] ]
-            Field.body [ ] [
-                for value in values do
-                    yield Field.div [] [ Input.text [ Input.IsReadOnly true; Input.Option.Value (value |> Option.defaultValue "") ] ]
+            Field.body [] [
+                for value in values |> List.choose id |> List.distinct do
+                    yield Field.div [] [
+                        Input.text [ Input.IsReadOnly true; Input.Option.Value value ]
+                    ]
             ]
         ]
     Modal.modal [ Modal.IsActive true ] [
@@ -270,21 +272,25 @@ let viewModalProperty (propertyResult:PropertyResult) closeModal =
             ]
             Modal.Card.body [] [
                 form [ ] [
-                    propField "Street" [ propertyResult.Address.Street ]
+                    propField "Street" [
+                        Some propertyResult.Address.Building
+                        propertyResult.Address.Street
+                    ]
                     propField "Town" [
+                        propertyResult.Address.Locality
                         Some propertyResult.Address.TownCity
-                        Some propertyResult.Address.County
+                        Some propertyResult.Address.District
                     ]
                     propField "Region" [
-                        Some propertyResult.Address.District
+                        Some propertyResult.Address.County
                         propertyResult.Address.PostCode ]
                     propField "Date & Price" [
                         Some (propertyResult.DateOfTransfer.ToString("ddd/MM/yyyy"))
                         Some (propertyResult.Price |> asCurrency)
                     ]
                     propField "Build" [
-                        Some (string propertyResult.BuildDetails.Contract)
-                        propertyResult.BuildDetails.PropertyType |> Option.map string
+                        Some (string propertyResult.BuildDetails.Contract.Description)
+                        propertyResult.BuildDetails.PropertyType |> Option.map(fun p -> p.Description)
                     ]
                 ]
                 Section.section [] [

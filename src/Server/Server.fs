@@ -8,7 +8,7 @@ open System.IO
 let publicPath = Path.GetFullPath "../Client/public"
 let port = 8085us
 let webApp searcher appConfig = router {
-    forward "/api/property/" (Routers.Search.createRouter searcher (SafeSearch.Storage.tryGetGeo appConfig.AzureStorage))
+    forward "/api/search/" (Routers.Search.createRouter searcher (SafeSearch.Storage.tryGetGeo appConfig.AzureStorage))
     forward "/api/transactions/" (Routers.Transactions.createRouter searcher appConfig.AzureStorage)
     forward "/api/postcodes/" (Routers.Postcodes.createRouter appConfig.AzureStorage)
 }

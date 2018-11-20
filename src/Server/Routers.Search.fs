@@ -42,8 +42,8 @@ let geoLookup tryGetGeo postcode next ctx = task {
     | Some (geo:Geo) -> return! json geo next ctx }
 
 let createRouter searcher tryGetGeo = router {
-    getf "find/%s/%i" (genericSearch searcher)
-    getf "suggest/%s" (searchSuggest searcher)
-    getf "geo/%s" (geoLookup tryGetGeo)
-    getf "%s/%i/%i" (searchProperties searcher tryGetGeo)
-    getf "%s/%i" (fun (postcode, distance) -> searchProperties searcher tryGetGeo (postcode, distance, 0)) }
+    getf "standard/%s/%i" (genericSearch searcher)
+    getf "geo/%s/%i/%i" (searchProperties searcher tryGetGeo)
+    getf "geo/%s/%i" (fun (postcode, distance) -> searchProperties searcher tryGetGeo (postcode, distance, 0))
+    getf "postcode/%s" (geoLookup tryGetGeo)
+    getf "suggest/%s" (searchSuggest searcher) }
