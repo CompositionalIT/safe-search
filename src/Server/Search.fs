@@ -14,7 +14,7 @@ type GeoPostcode =
 
 type ISearch =
     abstract GenericSearch : FindGenericRequest -> SearchResponse Task
-    abstract PostcodeSearch : FindNearestRequest -> SearchResponse Task
+    abstract PostcodeSearch : FindNearestRequest -> ((Geo * SearchResponse) option) Task
     abstract Suggest : SuggestRequest -> SuggestResponse Task
     abstract Documents : unit -> int64 Task
     abstract Clear : unit -> unit

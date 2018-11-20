@@ -4,17 +4,23 @@ type SearchState = CanSearch | NoSearchText | Searching
 type IndexName = PostcodeIndex | TransactionsIndex member this.Endpoint = match this with PostcodeIndex -> "postcodes" | TransactionsIndex -> "transactions"
 type SearchMethod = Standard | Location
 type ResultsView = ResultsList | ResultsMap
-
-type SearchResults =
-  { SearchUsed : SearchMethod
-    Results : PropertyResult array
-    View : ResultsView }
-
+type SearchResultType =
+  | StandardResults of PropertyResult array
+  | LocationResults of PropertyResult array * Geo * ResultsView
+  member this.CurrentView =
+      match this with
+      | StandardResults _ -> ResultsList
+      | LocationResults(_,_,view) -> view
+  member this.Results =
+    match this with
+    | StandardResults r -> r
+    | LocationResults (r, _, _) -> r
+    
 type SearchDetails =
     { SearchText : string
       SearchState : SearchState
-      SearchResults: SearchResults
-      SearchMethod : SearchMethod
+      SearchResults: SearchResultType
+      SelectedSearchMethod : SearchMethod
       SelectedProperty : PropertyResult option
       Sorting : Sort }
 
@@ -31,7 +37,7 @@ type IndexMsg =
 
 type SearchMsg =
 | FindProperties
-| FoundProperties of PropertyResult array
+| FoundProperties of SearchResultType
 | SetSearchText of string
 | SetSorting of string
 | SetSearchMethod of SearchMethod

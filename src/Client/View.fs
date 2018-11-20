@@ -92,7 +92,7 @@ let viewSearchPanel model dispatch =
                     Icon.faIcon [ Icon.Size IsSmall; Icon.IsLeft ] [ Fa.icon Fa.I.Search ]                                 
                 ]
                 Help.help [ Help.Color IsInfo ] [
-                    match model.SearchMethod with
+                    match model.SelectedSearchMethod with
                     | Standard -> yield str "Search for a property by street, town, postcode or district e.g. 'Tottenham'."
                     | Location -> yield str "Enter a postcode to search by location e.g. 'EC2A 4NE'"
                 ]
@@ -114,16 +114,16 @@ let viewSearchPanel model dispatch =
                     div [] [
                         Button.button [] [
                             span [] [
-                                let icon = match model.SearchMethod with Standard -> Fa.I.Search | Location -> Fa.I.LocationArrow
+                                let icon = match model.SelectedSearchMethod with Standard -> Fa.I.Search | Location -> Fa.I.LocationArrow
                                 yield Icon.faIcon [ Icon.Size IsSmall ] [ Fa.icon icon ]
-                                yield span [] [ str (sprintf "%O Search" model.SearchMethod) ]
+                                yield span [] [ str (sprintf "%O Search" model.SelectedSearchMethod) ]
                             ]
                             Icon.faIcon [ Icon.Size IsSmall ] [ Fa.icon Fa.I.AngleDown ]
                         ]
                         Dropdown.menu [ ] [
                             Dropdown.content [] [                                
-                                makeDropDownItem Standard model.SearchMethod Fa.I.Search (function Standard -> true | _ -> false)
-                                makeDropDownItem Location model.SearchMethod Fa.I.LocationArrow (function Location -> true | _ -> false)
+                                makeDropDownItem Standard model.SelectedSearchMethod Fa.I.Search (function Standard -> true | _ -> false)
+                                makeDropDownItem Location model.SelectedSearchMethod Fa.I.LocationArrow (function Location -> true | _ -> false)
                             ]
                         ]
                     ]
@@ -131,7 +131,27 @@ let viewSearchPanel model dispatch =
             ]
         ]
     ]
+
+
+open Fable.Core.JsInterop
+open Fable.Helpers.ReactGoogleMaps
+open Fable.Helpers.ReactGoogleMaps.Props
+
 let asCurrency = int64 >> Update.printNumber >> sprintf "£%s"
+
+let makeMap long lat container markers zoomLevel =
+    let center = Fable.Helpers.GoogleMaps.Literal.createLatLng long lat
+    Box.box' [] [
+        googleMap [ 
+            MapProperties.MapLoadingContainer "maploadercontainer"
+            MapProperties.MapContainer container
+            MapProperties.DefaultCenter !^ center
+            MapProperties.Center !^ center
+            MapProperties.DefaultZoom zoomLevel
+            MapProperties.Markers markers
+        ]
+    ]
+
 let viewSearchResults model dispatch =
     match model.SearchResults.Results with
     | [||] ->
@@ -145,31 +165,31 @@ let viewSearchResults model dispatch =
             let icon icon =
                 Icon.faIcon [ Icon.Modifiers [ Modifier.TextColor IColor.IsGrey ] ] [ Fa.icon icon ]
             [ match searchMethod with
-              | Standard ->
+              | StandardResults _ ->
                   yield sortableBuilder name
                   match sort with
                   | { SortColumn = Some c; SortDirection = Some Ascending } when c = name -> yield icon Fa.I.ArrowDown
                   | { SortColumn = Some c; SortDirection = Some Descending } when c = name -> yield icon Fa.I.ArrowUp
                   | _ -> ()
-              | Location -> yield basicBuilder name ]
+              | LocationResults _ -> yield basicBuilder name ]
         Container.container [ ] [
             yield Heading.h3 [] [ str "Results" ]
             yield Tabs.tabs [ Tabs.Size IsLarge; Tabs.IsBoxed ] [
                 let makeTab active icon text viewType =
                     Tabs.tab [ Tabs.Tab.IsActive active ] [ a [ OnClick(fun _ -> dispatch (ChangeView viewType)) ] [ Icon.faIcon [ Icon.Modifiers [ Modifier.TextColor IColor.IsPrimary ] ] [ Fa.icon icon ]; str text ] ]
-                yield makeTab (model.SearchResults.View = ResultsList) Fa.I.List "List" ResultsList
-                match model.SearchResults.SearchUsed with
-                | Location -> yield makeTab (model.SearchResults.View = ResultsMap) Fa.I.Map "Map" ResultsMap
-                | Standard -> ()
+                yield makeTab (model.SearchResults.CurrentView = ResultsList) Fa.I.List "List" ResultsList
+                match model.SearchResults with
+                | LocationResults _ -> yield makeTab (model.SearchResults.CurrentView = ResultsMap) Fa.I.Map "Map" ResultsMap
+                | StandardResults _ -> ()
             ]
 
-            match model.SearchResults.View with
-            | ResultsList ->
+            match model.SearchResults with
+            | LocationResults(_, _, ResultsList) | StandardResults _ ->
                 yield Table.table [ Table.IsFullWidth; Table.IsBordered; Table.IsHoverable; Table.IsStriped ] [
                     thead [] [
                         tr [] [
                             yield th [ Style [ Width "1px" ] ] []
-                            let maybeSortableColumn = maybeSortableColumn model.SearchResults.SearchUsed
+                            let maybeSortableColumn = maybeSortableColumn model.SearchResults
                             yield th [ Style [ Width "1px" ] ] (maybeSortableColumn str sortableColumn "Date" model.Sorting)
                             yield th [ Style [ Width "1px" ] ] (maybeSortableColumn str sortableColumn "Price" model.Sorting)
                             yield th [] (maybeSortableColumn str sortableColumn "Street" model.Sorting)
@@ -199,25 +219,33 @@ let viewSearchResults model dispatch =
                             ]
                     ]
                 ]
-            | ResultsMap -> ()            
+            | LocationResults(results, geo, ResultsMap) ->
+                let results =
+                    results
+                    |> Array.distinctBy(fun r -> r.Address.PostCode)
+                    |> Array.choose(fun r ->
+                        r.Address.GeoLocation
+                        |> Option.map(fun geo -> geo, r))
+                let markers =
+                    let youAreHere =
+                        marker [
+                            MarkerProperties.Key "YOUAREHERE"
+                            MarkerProperties.Position !^ (Fable.Helpers.GoogleMaps.Literal.createLatLng geo.Lat geo.Long)
+                            MarkerProperties.Icon ("images/you.png")
+                            MarkerProperties.Title (sprintf "You are here") ] []
+
+                    let properties =
+                        results
+                        |> Array.mapi(fun i (geo, result) ->
+                            marker [
+                                MarkerProperties.Key (string result.Address.PostCode)
+                                MarkerProperties.Position !^ (Fable.Helpers.GoogleMaps.Literal.createLatLng geo.Lat geo.Long)
+                                MarkerProperties.Icon ("images/house.png")
+                                MarkerProperties.Title (sprintf "%d. %s (%s)" (i + 1) (result.Address.Street |> Option.defaultValue result.Address.Building) (result.Price |> asCurrency)) ] [])
+                    Array.append [| youAreHere |] properties
+
+                yield makeMap geo.Lat geo.Long "largeMapcontainer" markers 16
         ]
-
-open Fable.Core.JsInterop
-open Fable.Helpers.ReactGoogleMaps
-open Fable.Helpers.ReactGoogleMaps.Props
-
-
-let makeMap long lat =
-    let center:Fable.Import.GoogleMaps.LatLngLiteral = Fable.Helpers.GoogleMaps.Literal.createLatLng long lat
-    Box.box' [] [
-        googleMap [ 
-            MapProperties.MapLoadingContainer "maploadercontainer"
-            MapProperties.MapContainer "mapcontainer"
-            MapProperties.DefaultZoom 12
-            MapProperties.DefaultCenter !^ center
-            MapProperties.Center !^ center
-        ]
-    ]
         
 let viewModalProperty (propertyResult:PropertyResult) closeModal =
     let propField label values = 
@@ -255,7 +283,9 @@ let viewModalProperty (propertyResult:PropertyResult) closeModal =
                     ]
                 ]
                 Section.section [] [
-                    makeMap propertyResult.Address.GeoLocation.Value.Lat propertyResult.Address.GeoLocation.Value.Long
+                    match propertyResult.Address.GeoLocation with
+                    | Some geo -> yield makeMap geo.Lat geo.Long "mapcontainer" [] 12
+                    | None -> ()
                 ]
             ]
             Modal.Card.foot [ ] [

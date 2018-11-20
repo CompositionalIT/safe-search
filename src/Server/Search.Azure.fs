@@ -185,9 +185,9 @@ let findByPostcode config (tryGetGeo:string -> Task<Geo option>) request = task 
             findByDistance geo request.MaxDistance
             |> applyFilters request.Filter
             |> doSearch config request.Page None            
-        return searchResults |> toFindPropertiesResponse findFacet count request.Page
+        return Some ({ Lat = geo.Latitude; Long = geo.Longitude }, searchResults |> toFindPropertiesResponse findFacet count request.Page)
     | None ->
-        return Array.empty |> toFindPropertiesResponse (fun _ -> []) None 0 }
+        return None }
 
 let getDocumentSize searchConfig =
     let index = propertiesIndex searchConfig
