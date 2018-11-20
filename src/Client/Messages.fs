@@ -44,6 +44,7 @@ type SearchMsg =
 | SelectProperty of PropertyResult
 | DeselectProperty
 | ChangeView of ResultsView
+| SearchPostcode of string
 
 type Msg =
 | IndexMsg of IndexMsg

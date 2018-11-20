@@ -17,7 +17,7 @@ let viewNavBar model dispatch =
             let isIndexing =
                 model.IndexStats
                 |> Map.exists(fun _ -> function { Status = Indexing _ } -> true | _ -> false)
-            let createIngestionButton index =
+            let createImportButton index =
                 Navbar.Item.div [] [
                     Button.button [
                         if isIndexing then yield Button.Disabled true
@@ -26,8 +26,8 @@ let viewNavBar model dispatch =
                         str (sprintf "Import %s" index.Endpoint)
                     ]
                 ]
-            yield createIngestionButton PostcodeIndex
-            yield createIngestionButton TransactionsIndex
+            yield createImportButton PostcodeIndex
+            yield createImportButton TransactionsIndex
             yield Navbar.Item.div [] [
                 Button.button [
                     if model.Refreshing then yield Button.IsLoading true
@@ -203,7 +203,7 @@ let viewSearchResults model dispatch =
                     tbody [] [
                         for result in results ->
                             tr [] [
-                                td [] [
+                                yield td [] [
                                     Icon.faIcon [
                                         Icon.Option.Props [
                                             OnClick(fun _ -> dispatch (SelectProperty result))
@@ -212,12 +212,14 @@ let viewSearchResults model dispatch =
                                         Icon.Modifiers [ Modifier.TextColor IColor.IsInfo ] ] [
                                         Fa.icon Fa.I.InfoCircle ]
                                 ]
-                                td [] [ str (result.DateOfTransfer.Date.ToShortDateString()) ]
-                                td [ Style [ TextAlign "right" ] ] [ str (asCurrency result.Price) ]
-                                td [ Style [ WhiteSpace "nowrap" ] ] [ result.Address.Street |> Option.defaultValue "" |> str ]
-                                td [ Style [ WhiteSpace "nowrap" ] ] [ str result.Address.TownCity ]
-                                td [ Style [ WhiteSpace "nowrap" ] ] [ str result.Address.County ]
-                                td [ Style [ WhiteSpace "nowrap" ] ] [ result.Address.PostCode |> Option.defaultValue "" |> str ]
+                                yield td [] [ str (result.DateOfTransfer.Date.ToShortDateString()) ]
+                                yield td [ Style [ TextAlign "right" ] ] [ str (asCurrency result.Price) ]
+                                yield td [ Style [ WhiteSpace "nowrap" ] ] [ result.Address.Street |> Option.defaultValue "" |> str ]
+                                yield td [ Style [ WhiteSpace "nowrap" ] ] [ str result.Address.TownCity ]
+                                yield td [ Style [ WhiteSpace "nowrap" ] ] [ str result.Address.County ]
+                                match result.Address.PostCode with
+                                | Some postcode -> yield td [ Style [ WhiteSpace "nowrap" ] ] [ a [ OnClick(fun _ -> dispatch (SearchPostcode postcode)) ] [ str postcode ] ]
+                                | None -> ()
                             ]
                     ]
                 ]
@@ -229,11 +231,17 @@ let viewSearchResults model dispatch =
                 let markers =
                     results
                     |> Array.mapi(fun i (geo, result) ->
+                        let markerText =
+                            match result.Address with
+                            | { Street = Some street; PostCode = Some postcode } -> sprintf "%s %s" street postcode
+                            | { Street = Some street } -> street
+                            | _ -> result.Address.Building
+
                         marker [
                             MarkerProperties.Key (string result.Address.PostCode)
                             MarkerProperties.Position !^ (Fable.Helpers.GoogleMaps.Literal.createLatLng geo.Lat geo.Long)
                             MarkerProperties.Icon ("images/house.png")
-                            MarkerProperties.Title (sprintf "%d. %s (%s)" (i + 1) (result.Address.Street |> Option.defaultValue result.Address.Building) (result.Price |> asCurrency)) ] [])
+                            MarkerProperties.Title (sprintf "%d. %s (%s)" (i + 1) markerText (result.Price |> asCurrency)) ] [])
 
                 let originMarker location =
                     marker [

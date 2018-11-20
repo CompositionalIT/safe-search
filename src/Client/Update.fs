@@ -112,6 +112,10 @@ let updateSearchMsg msg model =
         | StandardResults _ -> model, Cmd.none
         | LocationResults (props, geo, _) ->
             { model with SearchResults = LocationResults(props, geo, view) }, Cmd.none
+    | SearchPostcode postcode ->
+        { model with
+            SearchText = postcode
+            SelectedSearchMethod = SearchMethod.Location }, Cmd.ofMsg (SearchMsg FindProperties)
 
 let update msg model =
     match msg with
