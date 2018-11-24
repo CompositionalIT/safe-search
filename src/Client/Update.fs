@@ -21,8 +21,8 @@ let printNumber (n:int64) =
 
 module Server =
     let private standardResponseDecoder = Decode.Auto.generateDecoder<PropertyResult array>()
-    let private locationResponseDecoder = Decode.Auto.generateDecoder<Result<Geo * (PropertyResult array), string>>()
-    let private loadProperties decoder (onSuccess:_ -> Result<SearchResultType, string>) uri page sort  =
+    let private locationResponseDecoder = Decode.Auto.generateDecoder<Result<Geo * (PropertyResult array), ServerError>>()
+    let private loadProperties decoder (onSuccess:_ -> Result<SearchResultType, ServerError>) uri page sort  =
         let uri =
             let uri = sprintf "/api/search/%s/%i" uri page
             match sort with
@@ -133,7 +133,9 @@ let updateSearchMsg msg model =
             | Standard -> Server.loadPropertiesNormal model.SearchText
             | Location -> Server.loadPropertiesLocation (model.SearchText, 1, model.SearchResults.CurrentView)
         let cmd = cmd 0 model.Sorting
-        { model with SearchState = Searching }, cmd
+        { model with
+            Suggestions = [||]
+            SearchState = Searching }, cmd
     | FoundProperties results ->
         { model with
             SearchResults = results

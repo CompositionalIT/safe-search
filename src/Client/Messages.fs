@@ -22,7 +22,7 @@ type SearchDetails =
     { SearchText : string
       SearchState : SearchState
       SearchResults: SearchResultType
-      FindFailure : string option
+      FindFailure : ServerError option
       SelectedSearchMethod : SearchMethod
       SelectedProperty : PropertyResult option
       Sorting : Sort
@@ -59,7 +59,7 @@ type SearchMsg =
 | SelectProperty of PropertyResult
 | DeselectProperty
 | ChangeView of ResultsView
-| FoundFailed of error:string
+| FoundFailed of ServerError
 
 type Msg =
 | IndexMsg of IndexMsg

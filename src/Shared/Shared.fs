@@ -95,3 +95,6 @@ type IndexState = Idle | Indexing of indexed:int
 type IndexStats =
     { DocumentCount : int64
       Status : IndexState }
+
+type ServerError =
+    | NoGeolocation of string

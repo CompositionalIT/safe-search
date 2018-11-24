@@ -109,7 +109,9 @@ let createSearchPanel model dispatch =
                 ]
                 match model.FindFailure with
                 | Some error ->
-                    yield Help.help [ Help.Color IsDanger ] [ str error ]
+                    yield Help.help [ Help.Color IsDanger ] [
+                        match error with
+                        | NoGeolocation postcode -> yield str (sprintf "Unable to locate geolocation details for postcode '%s'" postcode) ]
                 | None ->
                     yield Help.help [ Help.Color IsInfo ] [
                         match model.SelectedSearchMethod with

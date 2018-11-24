@@ -9,7 +9,7 @@ open SafeSearch.Search
 
 let searchProperties (searcher:Search.ISearch) (tryGetGeo: string -> Geo option System.Threading.Tasks.Task) (postCode:string, distance, page) next (ctx:HttpContext) = task {
     match! tryGetGeo postCode with
-    | None -> return! json (Error (sprintf "Could not locate geolocation for postcode %s." postCode)) next ctx
+    | None -> return! json (Error (NoGeolocation postCode)) next ctx
     | Some geo ->
         let! resp =
             searcher.LocationSearch
@@ -38,7 +38,7 @@ let genericSearch (searcher:Search.ISearch) (text, page) next (ctx:HttpContext) 
 let geoLookup tryGetGeo postcode next ctx = task {
     let! geo = tryGetGeo postcode
     match geo with
-    | None -> return! json (Error (sprintf "Could not locate geolocation for postcode %s." postcode)) next ctx
+    | None -> return! json (Error (NoGeolocation postcode)) next ctx
     | Some (geo:Geo) -> return! json (Ok geo) next ctx }
 
 let createRouter searcher tryGetGeo = router {
