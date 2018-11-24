@@ -21,8 +21,8 @@ let printNumber (n:int64) =
 
 module Server =
     let private standardResponseDecoder = Decode.Auto.generateDecoder<PropertyResult array>()
-    let private locationResponseDecoder = Decode.Auto.generateDecoder<Result<Geo * (PropertyResult array), ServerError>>()
-    let private loadProperties decoder (onSuccess:_ -> Result<SearchResultType, ServerError>) uri page sort  =
+    let private locationResponseDecoder = Decode.Auto.generateDecoder<Result<Geo * (PropertyResult array), SearchError>>()
+    let private loadProperties decoder (onSuccess:_ -> Result<SearchResultType, SearchError>) uri page sort  =
         let uri =
             let uri = sprintf "/api/search/%s/%i" uri page
             match sort with
@@ -56,9 +56,9 @@ let defaultModel =
         { SearchResults = StandardResults [||]
           SelectedSearchMethod = Standard
           SearchText = ""
-          SearchState = NoSearchText
+          SearchState = CannotSearch NoSearchText
           SelectedProperty = None
-          FindFailure = None
+          SearchError = None
           Suggestions = [||]
           Sorting =
             { SortDirection = Some Descending
@@ -86,43 +86,57 @@ let updateIndexMsg msg model =
             |> Toastr.info
         model, Cmd.batch [ Server.loadAllStats; messageCmd ]
 
-let updateSearchTextMsg msg model =
-    match msg with
-    | SetSearchText text ->
+let private validateSearchTextMsg = Cmd.ofMsg (ValidateSearchText |> SearchTextMsg |> SearchMsg)
+let updateSearchTextMsg msg (model:SearchDetails) =
+    match msg, model.SelectedSearchMethod with
+    | SetSearchText text, Standard ->
         let debouncerModel, debouncerCmd =
             model.Debouncer |> Debouncer.bounce (TimeSpan.FromSeconds 1.0) "user_input" FetchSuggestions
+        let model =
+            { model with
+                SearchText = text
+                Suggestions = [||]
+                SearchError = None
+                Debouncer = debouncerModel }
+            
+        let commands = Cmd.batch [
+            validateSearchTextMsg
+            Cmd.map DebouncerSelfMsg debouncerCmd |> Cmd.map (SearchTextMsg >> SearchMsg)
+        ]
+        model, commands
+    | SetSearchText text, Location ->
         { model with
             SearchText = text
             Suggestions = [||]
-            FindFailure = None
-            SearchState =
-                if System.String.IsNullOrWhiteSpace text then NoSearchText
-                else CanSearch
-            Debouncer = debouncerModel },
-            Cmd.map DebouncerSelfMsg debouncerCmd |> Cmd.map (SearchTextMsg >> SearchMsg)        
-    | DebouncerSelfMsg debouncerMsg ->
+            SearchError = None }, validateSearchTextMsg
+    | DebouncerSelfMsg debouncerMsg, _ ->
         let debouncerModel, debouncerCmd = Debouncer.update debouncerMsg model.Debouncer
         { model with Debouncer = debouncerModel }, debouncerCmd |> Cmd.map (SearchTextMsg >> SearchMsg)
-    | FetchSuggestions ->
+    | FetchSuggestions, _ ->
         if not (String.IsNullOrWhiteSpace model.SearchText) then
             model, (Server.getSuggestions model.SearchText)
         else model, Cmd.none        
-    | FetchedSuggestions response ->
-        match model.SelectedSearchMethod with
-        | Standard -> { model with Suggestions = response.Suggestions }, Cmd.none
-        | Location -> model, Cmd.none
-    | ClearSuggestions ->
+    | FetchedSuggestions response, Standard ->
+        { model with Suggestions = response.Suggestions }, Cmd.none
+    | FetchedSuggestions _, Location ->
+        model, Cmd.none
+    | ClearSuggestions, _ ->
         { model with Suggestions = [||] }, Cmd.none
-    | SetTextAndSearch(text, searchMethod) ->
+    | ValidateSearchText, _ ->
+        let searchState =
+            match model.SelectedSearchMethod with
+            | _ when System.String.IsNullOrWhiteSpace model.SearchText -> CannotSearch NoSearchText
+            | Location when not (Validation.isValidPostcode model.SearchText) -> CannotSearch InvalidPostcode
+            | _ -> CanSearch
+
+        { model with SearchState = searchState }, Cmd.none
+    | SetTextAndSearch(text, searchMethod), _ ->
         { model with
             SearchText =
                 match searchMethod with
                 | Location -> text
                 | Standard -> sprintf "\"%s\"" text
             Suggestions = [||]
-            SearchState =
-                if System.String.IsNullOrWhiteSpace text then NoSearchText
-                else CanSearch
             SelectedSearchMethod = searchMethod }, Cmd.ofMsg (SearchMsg FindProperties)
 
 let updateSearchMsg msg model =
@@ -143,11 +157,12 @@ let updateSearchMsg msg model =
     | FoundFailed msg ->
         { model with
             SearchState = CanSearch
-            FindFailure = Some msg }, Cmd.none
+            SearchError = Some msg }, Cmd.none
     | SearchTextMsg msg ->
         updateSearchTextMsg msg model
     | SetSearchMethod method ->
-        { model with SelectedSearchMethod = method }, Cmd.ofMsg (SearchMsg(SearchTextMsg ClearSuggestions))
+        { model with SelectedSearchMethod = method },
+            Cmd.batch [ validateSearchTextMsg; Cmd.ofMsg (SearchMsg(SearchTextMsg ClearSuggestions)) ]
     | SetSorting column ->
         let model =
             let sort =
@@ -167,6 +182,7 @@ let updateSearchMsg msg model =
         | StandardResults _ -> model, Cmd.none
         | LocationResults (props, geo, _) ->
             { model with SearchResults = LocationResults(props, geo, view) }, Cmd.none
+
 let update msg model =
     match msg with
     | IndexMsg msg -> updateIndexMsg msg model

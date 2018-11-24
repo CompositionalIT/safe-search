@@ -2,7 +2,8 @@ namespace SafeSearch
 
 open Thoth.Elmish
 
-type SearchState = CanSearch | NoSearchText | Searching
+type InvalidSearch = NoSearchText | InvalidPostcode
+type SearchState = CanSearch | CannotSearch of InvalidSearch | Searching
 type IndexName = PostcodeIndex | TransactionsIndex member this.Endpoint = match this with PostcodeIndex -> "postcodes" | TransactionsIndex -> "transactions"
 type SearchMethod = Standard | Location
 type ResultsView = ResultsList | ResultsMap
@@ -22,7 +23,7 @@ type SearchDetails =
     { SearchText : string
       SearchState : SearchState
       SearchResults: SearchResultType
-      FindFailure : ServerError option
+      SearchError : SearchError option
       SelectedSearchMethod : SearchMethod
       SelectedProperty : PropertyResult option
       Sorting : Sort
@@ -48,6 +49,7 @@ type SearchTextMsg =
 | FetchSuggestions
 | FetchedSuggestions of SuggestResponse
 | SetTextAndSearch of string * SearchMethod
+| ValidateSearchText
 | ClearSuggestions
 
 type SearchMsg =
@@ -59,7 +61,7 @@ type SearchMsg =
 | SelectProperty of PropertyResult
 | DeselectProperty
 | ChangeView of ResultsView
-| FoundFailed of ServerError
+| FoundFailed of SearchError
 
 type Msg =
 | IndexMsg of IndexMsg

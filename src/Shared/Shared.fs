@@ -96,5 +96,11 @@ type IndexStats =
     { DocumentCount : int64
       Status : IndexState }
 
-type ServerError =
+type SearchError =
     | NoGeolocation of string
+
+/// Provides validation on data. Shared across both client and server.
+module Validation =
+    open System.Text.RegularExpressions
+    let isValidPostcode postcode =
+        Regex.IsMatch(postcode, @"([Gg][Ii][Rr] 0[Aa]{2})|((([A-Za-z][0-9]{1,2})|(([A-Za-z][A-Ha-hJ-Yj-y][0-9]{1,2})|(([A-Za-z][0-9][A-Za-z])|([A-Za-z][A-Ha-hJ-Yj-y][0-9]?[A-Za-z]))))\s?[0-9][A-Za-z]{2})")    

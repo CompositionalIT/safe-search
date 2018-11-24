@@ -83,13 +83,13 @@ let createSearchPanel model dispatch =
                 yield Control.div [ Control.HasIconLeft ] [
                     Input.text [
                         yield Input.Option.Placeholder "Enter your search term here."
-                        match model.FindFailure with
-                        | Some _ -> yield Input.Option.Color IColor.IsDanger
-                        | None -> yield Input.Option.Color IColor.IsPrimary
+                        match model.SearchError, model.SearchState with
+                        | Some _, _ | None, CannotSearch InvalidPostcode -> yield Input.Option.Color IColor.IsDanger
+                        | None, (Searching | CannotSearch NoSearchText | CanSearch) -> yield Input.Option.Color IColor.IsPrimary
                         yield Input.Value model.SearchText
                         match model.SearchState with
                         | Searching -> yield Input.Disabled true
-                        | NoSearchText | CanSearch -> ()
+                        | CannotSearch _ | CanSearch -> ()
                         yield Input.OnChange (fun e -> dispatch (SearchTextMsg(SetSearchText e.Value))) ]
                     Icon.faIcon [ Icon.Size IsSmall; Icon.IsLeft ] [ Fa.icon Fa.I.Search ] 
                 ]
@@ -107,23 +107,33 @@ let createSearchPanel model dispatch =
                         ]
                     ]                               
                 ]
-                match model.FindFailure with
-                | Some error ->
+                match model.SearchError, model.SearchState with
+                | Some searchError, _ ->
                     yield Help.help [ Help.Color IsDanger ] [
-                        match error with
-                        | NoGeolocation postcode -> yield str (sprintf "Unable to locate geolocation details for postcode '%s'" postcode) ]
-                | None ->
+                        match searchError with
+                        | NoGeolocation postcode -> yield str (sprintf "Unable to locate geolocation details for postcode '%s'." postcode)
+                    ]
+                | None, (CannotSearch NoSearchText | CanSearch) ->
                     yield Help.help [ Help.Color IsInfo ] [
                         match model.SelectedSearchMethod with
                         | Standard -> yield str "Search for a property by street, town, postcode or district e.g. 'Tottenham'."
                         | Location -> yield str "Enter a postcode to search by location e.g. 'EC2A 4NE'"
+                    ]
+                | None, Searching ->
+                    yield Help.help [ Help.Color IsInfo ] [
+                        str "Searching, please wait..."
+                    ]
+                | None, CannotSearch InvalidPostcode ->
+                    yield Help.help [ Help.Color IsDanger ] [
+                        str "This is not a valid postcode."
                     ]
             ]
             Column.column [ Column.Option.Width(Screen.All, Column.IsOneFifth) ] [
                 Button.a [ yield Button.IsFullWidth
                            yield Button.Color IsPrimary
                            match model.SearchState with
-                           | NoSearchText -> yield Button.Disabled true
+                           | CannotSearch NoSearchText -> yield Button.Disabled true
+                           | CannotSearch InvalidPostcode -> yield Button.Disabled true
                            | Searching -> yield Button.IsLoading true
                            | CanSearch -> ()
                            yield Button.OnClick (fun _ -> dispatch FindProperties) ] [
