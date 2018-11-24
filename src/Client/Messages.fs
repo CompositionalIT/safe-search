@@ -41,20 +41,19 @@ type IndexMsg =
 | StartIndexing of IndexName
 | StartedIndexing of IndexName * int64
 
-type TextChangeSource = User | System
+type TextChangeSource = UserAction | SystemAction
 
 type SearchTextMsg =
-| SetSearchText of string
+| SetSearchText of string * TextChangeSource
 | DebouncerSelfMsg of SearchTextMsg Debouncer.SelfMessage
 | FetchSuggestions
 | FetchedSuggestions of SuggestResponse
-| SetTextAndSearch of string * SearchMethod
 | ValidateSearchText
 | ClearSuggestions
 
 type SearchMsg =
-| FindProperties
-| FoundProperties of SearchResultType
+| StartSearch
+| SearchComplete of SearchResultType
 | SetSorting of string
 | SetSearchMethod of SearchMethod
 | SearchTextMsg of SearchTextMsg

@@ -29,7 +29,7 @@ module Server =
             | { SortColumn = Some column; SortDirection = Some direction } -> sprintf "%s?SortColumn=%s&SortDirection=%O" uri column direction
             | { SortColumn = Some column; SortDirection = None } -> sprintf "%s?SortColumn=%s" uri column
             | _ -> uri        
-        let handleResult = function Ok msg -> FoundProperties msg | Error msg -> FoundFailed msg
+        let handleResult = function Ok msg -> SearchComplete msg | Error msg -> FoundFailed msg
         Cmd.ofPromise (fetchAs uri decoder) [] (onSuccess >> handleResult >> SearchMsg) ErrorOccurred
 
     let loadPropertiesNormal = sprintf "standard/%s" >> loadProperties standardResponseDecoder (StandardResults >> Ok)
@@ -89,7 +89,7 @@ let updateIndexMsg msg model =
 let private validateSearchTextMsg = Cmd.ofMsg (ValidateSearchText |> SearchTextMsg |> SearchMsg)
 let updateSearchTextMsg msg (model:SearchDetails) =
     match msg, model.SelectedSearchMethod with
-    | SetSearchText text, Standard ->
+    | SetSearchText(text, UserAction), Standard ->
         let debouncerModel, debouncerCmd =
             model.Debouncer |> Debouncer.bounce (TimeSpan.FromSeconds 1.0) "user_input" FetchSuggestions
         let model =
@@ -104,7 +104,7 @@ let updateSearchTextMsg msg (model:SearchDetails) =
             Cmd.map DebouncerSelfMsg debouncerCmd |> Cmd.map (SearchTextMsg >> SearchMsg)
         ]
         model, commands
-    | SetSearchText text, Location ->
+    | SetSearchText(text, _), _ ->
         { model with
             SearchText = text
             Suggestions = [||]
@@ -130,18 +130,10 @@ let updateSearchTextMsg msg (model:SearchDetails) =
             | _ -> CanSearch
 
         { model with SearchState = searchState }, Cmd.none
-    | SetTextAndSearch(text, searchMethod), _ ->
-        { model with
-            SearchText =
-                match searchMethod with
-                | Location -> text
-                | Standard -> sprintf "\"%s\"" text
-            Suggestions = [||]
-            SelectedSearchMethod = searchMethod }, Cmd.ofMsg (SearchMsg FindProperties)
 
 let updateSearchMsg msg model =
     match msg with
-    | FindProperties ->
+    | StartSearch ->
         let cmd =
             match model.SelectedSearchMethod with
             | Standard -> Server.loadPropertiesNormal model.SearchText
@@ -150,10 +142,10 @@ let updateSearchMsg msg model =
         { model with
             Suggestions = [||]
             SearchState = Searching }, cmd
-    | FoundProperties results ->
+    | SearchComplete results ->
         { model with
             SearchResults = results
-            SearchState = CanSearch }, Cmd.none
+            SearchState = CanSearch }, Cmd.ofMsg (SearchMsg (SearchTextMsg ClearSuggestions))
     | FoundFailed msg ->
         { model with
             SearchState = CanSearch
@@ -172,7 +164,7 @@ let updateSearchMsg msg model =
                 | _ ->
                     { SortColumn = Some column; SortDirection = Some Descending }
             { model with Sorting = sort }
-        model, Cmd.ofMsg (SearchMsg FindProperties)
+        model, Cmd.ofMsg (SearchMsg StartSearch)
     | SelectProperty selectedProperty ->
         { model with SelectedProperty = Some selectedProperty }, Cmd.none
     | DeselectProperty ->

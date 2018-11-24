@@ -90,7 +90,7 @@ let createSearchPanel model dispatch =
                         match model.SearchState with
                         | Searching -> yield Input.Disabled true
                         | CannotSearch _ | CanSearch -> ()
-                        yield Input.OnChange (fun e -> dispatch (SearchTextMsg(SetSearchText e.Value))) ]
+                        yield Input.OnChange (fun e -> dispatch (SearchTextMsg(SetSearchText(e.Value, UserAction)))) ]
                     Icon.faIcon [ Icon.Size IsSmall; Icon.IsLeft ] [ Fa.icon Fa.I.Search ] 
                 ]
                 yield Dropdown.dropdown [ Dropdown.IsActive (not (Array.isEmpty model.Suggestions)) ] [
@@ -100,8 +100,8 @@ let createSearchPanel model dispatch =
                                 yield Dropdown.Item.a [
                                     Dropdown.Item.Props [
                                         OnClick(fun _ ->
-                                            dispatch (SearchTextMsg(SetTextAndSearch(suggestion, model.SelectedSearchMethod)))
-                                            dispatch FindProperties)
+                                            dispatch (SearchTextMsg(SetSearchText (sprintf "\"%s\"" suggestion, SystemAction)))
+                                            dispatch StartSearch)
                                     ]
                                 ] [ str suggestion ]
                         ]
@@ -136,7 +136,7 @@ let createSearchPanel model dispatch =
                            | CannotSearch InvalidPostcode -> yield Button.Disabled true
                            | Searching -> yield Button.IsLoading true
                            | CanSearch -> ()
-                           yield Button.OnClick (fun _ -> dispatch FindProperties) ] [
+                           yield Button.OnClick (fun _ -> dispatch StartSearch) ] [
                                Icon.faIcon [] [ Fa.icon Fa.I.Search ]
                                span [] [ str "Search" ]
                            ]
@@ -250,8 +250,17 @@ let createSearchResults model dispatch =
                                 yield td [ Style [ WhiteSpace "nowrap" ] ] [ str result.Address.TownCity ]
                                 yield td [ Style [ WhiteSpace "nowrap" ] ] [ str result.Address.County ]
                                 match result.Address.PostCode with
-                                | Some postcode -> yield td [ Style [ WhiteSpace "nowrap" ] ] [ a [ OnClick(fun _ -> dispatch (SearchTextMsg(SetTextAndSearch(postcode, Location)))) ] [ str postcode ] ]
-                                | None -> yield td [] []
+                                | Some postcode ->
+                                    yield
+                                        td [ Style [ WhiteSpace "nowrap" ] ]
+                                           [ a [ OnClick(fun _ ->
+                                                    dispatch (SetSearchMethod Location)
+                                                    dispatch (SearchTextMsg(SetSearchText(postcode, SystemAction)))
+                                                    dispatch StartSearch
+                                                ) ] [ str postcode ]
+                                           ]
+                                | None ->
+                                    yield td [] []
                             ]
                     ]
                 ]
