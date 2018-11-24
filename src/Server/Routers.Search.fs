@@ -17,7 +17,7 @@ let searchProperties (searcher:Search.ISearch) (tryGetGeo: string -> Geo option 
                   Geo = geo
                   MaxDistance = distance
                   Page = page }
-        return! json (Ok(geo, resp.Results)) next ctx }
+        return! json (Ok(geo, resp)) next ctx }
 
 let searchSuggest (searcher:Search.ISearch) text next (ctx:HttpContext) = task {
     let! properties = searcher.Suggest { Text = text }
@@ -33,7 +33,7 @@ let genericSearch (searcher:Search.ISearch) (text, page) next (ctx:HttpContext) 
               SortDirection = ctx.TryGetQueryStringValue "SortDirection" |> Option.bind SortDirection.TryParse } }
     
     let! searchResponse = searcher.GenericSearch request
-    return! json searchResponse.Results next ctx }
+    return! json searchResponse next ctx }
 
 let geoLookup tryGetGeo postcode next ctx = task {
     let! geo = tryGetGeo postcode

@@ -187,25 +187,25 @@ let makeMap (lat, long, originMarker) container markers zoomLevel =
     ]
 
 let createSearchResults model dispatch =
-    match model.SearchResults.Results with
-    | [||] ->
+    match model.SearchResults.Response with
+    | { Results = [||] } ->
         Container.container [ ] [
             Heading.h3 [ Heading.Modifiers [ Modifier.TextAlignment(Screen.All, TextAlignment.Centered) ] ] [
                 str "No results found!"]
         ]
-    | results ->
+    | response ->
         let sortableColumn title = a [ OnClick (fun _ -> dispatch (SetSorting title)) ] [ str title ]
         let maybeSortableColumn searchMethod basicBuilder sortableBuilder name sort =
             let icon icon =
                 Icon.faIcon [ Icon.Modifiers [ Modifier.TextColor IColor.IsGrey ] ] [ Fa.icon icon ]
             [ match searchMethod with
-              | StandardResults _ ->
+              | StandardResponse _ ->
                   yield sortableBuilder name
                   match sort with
                   | { SortColumn = Some c; SortDirection = Some Ascending } when c = name -> yield icon Fa.I.ArrowDown
                   | { SortColumn = Some c; SortDirection = Some Descending } when c = name -> yield icon Fa.I.ArrowUp
                   | _ -> ()
-              | LocationResults _ -> yield basicBuilder name ]
+              | LocationResponse _ -> yield basicBuilder name ]
         Container.container [ ] [
             yield Heading.h3 [] [ str "Results" ]
             yield Tabs.tabs [ Tabs.Size IsLarge; Tabs.IsBoxed ] [
@@ -213,12 +213,12 @@ let createSearchResults model dispatch =
                     Tabs.tab [ Tabs.Tab.IsActive active ] [ a [ OnClick(fun _ -> dispatch (ChangeView viewType)) ] [ Icon.faIcon [ Icon.Modifiers [ ] ] [ Fa.icon icon ]; str text ] ]
                 yield makeTab (model.SearchResults.CurrentView = ResultsList) Fa.I.List "List" ResultsList
                 match model.SearchResults with
-                | LocationResults _ -> yield makeTab (model.SearchResults.CurrentView = ResultsMap) Fa.I.Map "Map" ResultsMap
-                | StandardResults _ -> ()
+                | LocationResponse _ -> yield makeTab (model.SearchResults.CurrentView = ResultsMap) Fa.I.Map "Map" ResultsMap
+                | StandardResponse _ -> ()
             ]
 
             match model.SearchResults with
-            | LocationResults(_, _, ResultsList) | StandardResults _ ->
+            | LocationResponse(_, _, ResultsList) | StandardResponse _ ->
                 yield Table.table [ Table.IsFullWidth; Table.IsBordered; Table.IsHoverable; Table.IsStriped ] [
                     thead [] [
                         tr [] [
@@ -233,7 +233,7 @@ let createSearchResults model dispatch =
                         ]
                     ]
                     tbody [] [
-                        for result in results ->
+                        for result in response.Results ->
                             tr [] [
                                 yield td [] [
                                     Icon.faIcon [
@@ -264,9 +264,9 @@ let createSearchResults model dispatch =
                             ]
                     ]
                 ]
-            | LocationResults(results, originGeo, ResultsMap) ->
+            | LocationResponse(response, originGeo, ResultsMap) ->
                 let results =
-                    results
+                    response.Results
                     |> Array.distinctBy(fun r -> r.Address.PostCode)
                     |> Array.choose(fun r -> r.Address.GeoLocation |> Option.map(fun geo -> geo, r))
                 let markers =
@@ -358,7 +358,7 @@ let view model dispatch =
     div [] [
         yield createNavBar model (IndexMsg >> dispatch)
         let searchPanelOpts =
-            match model.Search.SearchResults.Results with
+            match model.Search.SearchResults.Response.Results with
             | [||] -> [ Section.IsLarge ]
             | _ -> []
         yield Section.section searchPanelOpts [ createSearchPanel model.Search (SearchMsg >> dispatch) ]

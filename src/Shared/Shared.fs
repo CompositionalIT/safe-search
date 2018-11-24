@@ -89,6 +89,17 @@ type SearchResponse =
       TotalTransactions : int option
       Page : int
       Facets : Facets }
+    static member Empty =
+        { Results = Array.empty
+          TotalTransactions = None
+          Page = 0
+          Facets =
+            { Towns = []
+              Localities = []
+              Districts = []
+              Counties = []
+              Prices = [] } }
+
 type SuggestResponse =
     { Suggestions : string array }
 type IndexState = Idle | Indexing of indexed:int

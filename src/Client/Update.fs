@@ -20,8 +20,8 @@ let printNumber (n:int64) =
     System.String(chars)
 
 module Server =
-    let private standardResponseDecoder = Decode.Auto.generateDecoder<PropertyResult array>()
-    let private locationResponseDecoder = Decode.Auto.generateDecoder<Result<Geo * (PropertyResult array), SearchError>>()
+    let private standardResponseDecoder = Decode.Auto.generateDecoder<SearchResponse>()
+    let private locationResponseDecoder = Decode.Auto.generateDecoder<Result<Geo * SearchResponse, SearchError>>()
     let private loadProperties decoder (onSuccess:_ -> Result<SearchResultType, SearchError>) uri page sort  =
         let uri =
             let uri = sprintf "/api/search/%s/%i" uri page
@@ -32,10 +32,10 @@ module Server =
         let handleResult = function Ok msg -> SearchComplete msg | Error msg -> FoundFailed msg
         Cmd.ofPromise (fetchAs uri decoder) [] (onSuccess >> handleResult >> SearchMsg) ErrorOccurred
 
-    let loadPropertiesNormal = sprintf "standard/%s" >> loadProperties standardResponseDecoder (StandardResults >> Ok)
+    let loadPropertiesNormal = sprintf "standard/%s" >> loadProperties standardResponseDecoder (StandardResponse >> Ok)
     let loadPropertiesLocation (postcode, distance, view) =
         sprintf "geo/%s/%d" postcode distance
-        |> loadProperties locationResponseDecoder (Result.map(fun (geo, results) -> LocationResults(results, geo, view)))
+        |> loadProperties locationResponseDecoder (Result.map(fun (geo, results) -> LocationResponse(results, geo, view)))
     let loadAllStats =
         let loadStats (index:IndexName) =
             Cmd.ofPromise
@@ -53,7 +53,7 @@ module Server =
 
 let defaultModel =
     { Search =
-        { SearchResults = StandardResults [||]
+        { SearchResults = StandardResponse SearchResponse.Empty
           SelectedSearchMethod = Standard
           SearchText = ""
           SearchState = CannotSearch NoSearchText
@@ -171,9 +171,9 @@ let updateSearchMsg msg model =
         { model with SelectedProperty = None }, Cmd.none
     | ChangeView view ->
         match model.SearchResults with
-        | StandardResults _ -> model, Cmd.none
-        | LocationResults (props, geo, _) ->
-            { model with SearchResults = LocationResults(props, geo, view) }, Cmd.none
+        | StandardResponse _ -> model, Cmd.none
+        | LocationResponse (props, geo, _) ->
+            { model with SearchResults = LocationResponse(props, geo, view) }, Cmd.none
 
 let update msg model =
     match msg with

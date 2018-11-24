@@ -8,16 +8,16 @@ type IndexName = PostcodeIndex | TransactionsIndex member this.Endpoint = match 
 type SearchMethod = Standard | Location
 type ResultsView = ResultsList | ResultsMap
 type SearchResultType =
-  | StandardResults of PropertyResult array
-  | LocationResults of PropertyResult array * Geo * ResultsView
+  | StandardResponse of SearchResponse
+  | LocationResponse of SearchResponse * Geo * ResultsView
   member this.CurrentView =
       match this with
-      | StandardResults _ -> ResultsList
-      | LocationResults(_,_,view) -> view
-  member this.Results =
+      | StandardResponse _ -> ResultsList
+      | LocationResponse(_,_,view) -> view
+  member this.Response =
     match this with
-    | StandardResults r -> r
-    | LocationResults (r, _, _) -> r
+    | StandardResponse r -> r
+    | LocationResponse (r, _, _) -> r
     
 type SearchDetails =
     { SearchText : string
