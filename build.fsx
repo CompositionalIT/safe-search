@@ -65,16 +65,11 @@ Target.create "InstallClient" (fun _ ->
     runDotNet "restore" clientPath
 )
 
-Target.create "RestoreServer" (fun _ ->
-    runDotNet "restore" serverPath
-)
-
 Target.create "Build" (fun _ ->
     runDotNet "build" serverPath
     runDotNet "fable webpack-cli -- --config src/Client/webpack.config.js -p" clientPath
 )
-
-Target.create "Run" (fun _ ->
+Target.create "Run" (fun p ->
     let server = async {
         runDotNet "watch run" serverPath
     }
@@ -86,7 +81,15 @@ Target.create "Run" (fun _ ->
         openBrowser "http://localhost:8080"
     }
 
-    [ server; client; browser ]
+    let vsCodeSession = Environment.hasEnvironVar "vsCodeSession"
+    let safeClientOnly = Environment.hasEnvironVar "safeClientOnly"
+
+    let tasks =
+        [ if not safeClientOnly then yield server
+          yield client
+          if not vsCodeSession then yield browser ]
+
+    tasks
     |> Async.Parallel
     |> Async.RunSynchronously
     |> ignore
@@ -101,7 +104,6 @@ open Fake.Core.TargetOperators
 
 "Clean"
     ==> "InstallClient"
-    ==> "RestoreServer"
     ==> "Run"
 
 Target.runOrDefaultWithArguments "Build"
