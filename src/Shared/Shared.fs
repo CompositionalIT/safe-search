@@ -3,23 +3,42 @@ namespace SafeSearch
 open System
 
 type SortDirection =
-    | Ascending | Descending
+    | Ascending
+    | Descending
     static member TryParse str =
         if string Ascending = str then Some Ascending
         elif string Descending = str then Some Descending
         else None
+
 [<CLIMutable>]
-type Sort = { SortColumn : string option; SortDirection : SortDirection option }
+type Sort =
+    { SortColumn: string option
+      SortDirection: SortDirection option }
+
 [<CLIMutable>]
 type PropertyFilter =
-    { Town : string option
-      Locality : string option
-      District : string option
-      County : string option
-      MaxPrice : int option
-      MinPrice : int option }
+    { Town: string option
+      Locality: string option
+      District: string option
+      County: string option
+      MaxPrice: int option
+      MinPrice: int option }
+    member this.AllFilters =
+        seq { 
+            yield "TownCity", this.Town
+            yield "County", this.County
+            yield "Locality", this.Locality
+            yield "District", this.District
+        }
+        |> Seq.choose(fun (a, b) -> b |> Option.map(fun b -> a, b))
+        |> Seq.toList
+
 type PropertyTableColumn =
-    | Street | Town | Postcode | Date | Price
+    | Street
+    | Town
+    | Postcode
+    | Date
+    | Price
     static member TryParse s =
         if s = string Street then Some Street
         elif s = string Town then Some Town
@@ -27,91 +46,123 @@ type PropertyTableColumn =
         elif s = string Date then Some Date
         elif s = string Price then Some Price
         else None
+
 type PropertyType =
-    | Detached | SemiDetached | Terraced | FlatsMaisonettes | Other
+    | Detached
+    | SemiDetached
+    | Terraced
+    | FlatsMaisonettes
+    | Other
+    
     member this.Description =
         match this with
         | PropertyType.SemiDetached -> "Semi Detatch"
         | PropertyType.FlatsMaisonettes -> "Flats / Maisonettes"
         | _ -> string this
-    static member Parse = function
+    
+    static member Parse =
+        function 
         | "D" -> Some Detached
         | "S" -> Some SemiDetached
         | "T" -> Some Terraced
         | "F" -> Some FlatsMaisonettes
         | "O" -> Some Other
         | _ -> None
+
 type BuildType =
-    | NewBuild | OldBuild
+    | NewBuild
+    | OldBuild
+    
     member this.Description =
-      match this with
-      | BuildType.OldBuild -> "Old Build"
-      | BuildType.NewBuild -> "New Build"
-    static member Parse = function "Y" -> NewBuild | _ -> OldBuild
+        match this with
+        | BuildType.OldBuild -> "Old Build"
+        | BuildType.NewBuild -> "New Build"
+    
+    static member Parse =
+        function 
+        | "Y" -> NewBuild
+        | _ -> OldBuild
 
 type ContractType =
-    | Freehold | Leasehold
+    | Freehold
+    | Leasehold
     member this.Description = string this
-    static member Parse = function "F" -> Freehold | _ -> Leasehold
+    static member Parse =
+        function 
+        | "F" -> Freehold
+        | _ -> Leasehold
 
-type Geo = { Lat : float; Long : float }
+type Geo =
+    { Lat: float
+      Long: float }
 
 type Address =
-    { Building : string
-      Street : string option
-      Locality : string option
-      TownCity : string
-      District : string
-      County : string
-      PostCode : string option
-      GeoLocation : Geo option }
+    { Building: string
+      Street: string option
+      Locality: string option
+      TownCity: string
+      District: string
+      County: string
+      PostCode: string option
+      GeoLocation: Geo option }
     member address.FirstLine =
-      [ Some address.Building; address.Street ]
-      |> List.choose id
-      |> String.concat " "
+        [ Some address.Building
+          address.Street ]
+        |> List.choose id
+        |> String.concat " "
+
 type BuildDetails =
-    { PropertyType : PropertyType option
-      Build : BuildType
-      Contract : ContractType }
+    { PropertyType: PropertyType option
+      Build: BuildType
+      Contract: ContractType }
+
 type PropertyResult =
-    { BuildDetails : BuildDetails
-      Address : Address
-      Price : int
-      DateOfTransfer : DateTime }
+    { BuildDetails: BuildDetails
+      Address: Address
+      Price: int
+      DateOfTransfer: DateTime }
+
 type Facets =
-    { Towns : string list
-      Localities : string list
-      Districts : string list
-      Counties : string list
-      Prices : string list }
+    { Towns: string list
+      Localities: string list
+      Districts: string list
+      Counties: string list
+      Prices: string list }
+
 type SearchResponse =
-    { Results : PropertyResult array
-      TotalTransactions : int option
-      Page : int
-      Facets : Facets }
+    { Results: PropertyResult array
+      TotalTransactions: int option
+      Page: int
+      Facets: Facets }
     static member Empty =
         { Results = Array.empty
           TotalTransactions = None
           Page = 0
           Facets =
-            { Towns = []
-              Localities = []
-              Districts = []
-              Counties = []
-              Prices = [] } }
+              { Towns = []
+                Localities = []
+                Districts = []
+                Counties = []
+                Prices = [] } }
 
 type SuggestResponse =
-    { Suggestions : string array }
-type IndexState = Idle | Indexing of indexed:int
-type IndexStats =
-    { DocumentCount : int64
-      Status : IndexState }
+    { Suggestions: string array }
 
-type SearchError =
-    | NoGeolocation of string
+type IndexState =
+    | Idle
+    | Indexing of indexed: int
+
+type IndexStats =
+    { DocumentCount: int64
+      Status: IndexState }
+
+type SearchError = NoGeolocation of string
 
 /// Provides validation on data. Shared across both client and server.
 module Validation =
     open System.Text.RegularExpressions
+    
     let isValidPostcode postcode =
-        Regex.IsMatch(postcode, @"([Gg][Ii][Rr] 0[Aa]{2})|((([A-Za-z][0-9]{1,2})|(([A-Za-z][A-Ha-hJ-Yj-y][0-9]{1,2})|(([A-Za-z][0-9][A-Za-z])|([A-Za-z][A-Ha-hJ-Yj-y][0-9]?[A-Za-z]))))\s?[0-9][A-Za-z]{2})")    
+        Regex.IsMatch
+            (postcode, 
+             @"([Gg][Ii][Rr] 0[Aa]{2})|((([A-Za-z][0-9]{1,2})|(([A-Za-z][A-Ha-hJ-Yj-y][0-9]{1,2})|(([A-Za-z][0-9][A-Za-z])|([A-Za-z][A-Ha-hJ-Yj-y][0-9]?[A-Za-z]))))\s?[0-9][A-Za-z]{2})")
