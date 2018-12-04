@@ -14,12 +14,12 @@ type Direction =
         | Descending -> "desc"
 
 type SortColumn =
-    | FieldSort of field: string * Direction
-    | Geo of long: float * lat: float * Direction
+    | ByField of field: string * Direction
+    | ByDistance of long: float * lat: float * Direction
     member this.StringValue =
         match this with
-        | FieldSort(field, dir) -> sprintf "%s %s" field dir.StringValue
-        | Geo(long, lat, dir) -> 
+        | ByField(field, dir) -> sprintf "%s %s" field dir.StringValue
+        | ByDistance(long, lat, dir) -> 
             sprintf "geo.distance(Geo, geography'POINT(%f %f)') %s" long lat dir.StringValue
 
 module Filters =
@@ -66,6 +66,8 @@ module Filters =
     let where a comp b = Filter(Field a, comp, b)
     // A helper to create a basic geo filter.
     let whereGeo a comp b = Filter(Distance a, comp, b)
+    let combine = List.fold (+) DefaultFilter
+    let whereEq (a, b) = where a Eq b
     
     let rec eval =
         function 
@@ -81,7 +83,7 @@ type QueryDetails =
     { Parameters: SearchParameters
       Text: string option }
 
-type SearchQueryBuilder() =
+type AzureSearchBuilder() =
     
     member __.Yield _ =
         { Parameters = SearchParameters()
@@ -112,8 +114,8 @@ type SearchQueryBuilder() =
         state
     
     /// Sets the list of expressions by which to sort the results.
-    [<CustomOperation"orderBy">]
-    member __.OrderBy(state: QueryDetails, columns) =
+    [<CustomOperation"sort">]
+    member __.Sort(state: QueryDetails, columns) =
         state.Parameters.OrderBy <- columns
                                     |> List.map (fun (c: SortColumn) -> c.StringValue)
                                     |> ResizeArray
@@ -123,6 +125,7 @@ type SearchQueryBuilder() =
     [<CustomOperation"fulltext">]
     member __.FullText(state: QueryDetails, text) = { state with Text = Some text }
     
+    /// Specifies whether to fetch the approximate total count of results.
     [<CustomOperation"includeTotalResults">]
     member __.IncludeTotalResults(state: QueryDetails) =
         state.Parameters.IncludeTotalResultCount <- true
@@ -130,7 +133,7 @@ type SearchQueryBuilder() =
 
 [<AutoOpen>]
 module Kibalta =
-    let searchQuery = SearchQueryBuilder()
+    let azureSearch = AzureSearchBuilder()
     let makeClient name key = new SearchServiceClient(name, SearchCredentials key)
     
     let doSearch<'T when 'T: not struct> index (client: SearchServiceClient) query =

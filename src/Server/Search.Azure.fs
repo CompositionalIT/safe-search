@@ -107,6 +107,7 @@ module Management =
             client.Indexers.Create indexer |> ignore
         | _ -> ()
 
+/// Gets the columns to search on given a property field.
 let private toSearchColumns col =
     match PropertyTableColumn.TryParse col with
     | Some Street -> [ "Building"; "Street" ]
@@ -162,20 +163,20 @@ let findGeneric searchConfig (request: FindGenericRequest) =
         let query =
             let toFieldSort =
                 match request.Sort.SortDirection with
-                | Some Ascending | None -> fun s -> FieldSort(s, Direction.Ascending)
-                | Some Descending -> fun s -> FieldSort(s, Direction.Descending)
-            searchQuery { 
+                | Some Ascending | None -> fun s -> ByField(s, Direction.Ascending)
+                | Some Descending -> fun s -> ByField(s, Direction.Descending)
+            azureSearch { 
                 fulltext (request.Text |> Option.toObj)
                 filter (request.Filter.AllFilters
-                        |> List.map (fun (field, value) -> where field Eq value)
-                        |> List.fold (+) DefaultFilter)
-                orderBy (request.Sort.SortColumn
-                         |> Option.map toSearchColumns
-                         |> Option.defaultValue []
-                         |> List.map toFieldSort)
-                facets [ "Town"; "Locality"; "District"; "County"; "Price" ]
+                        |> List.map whereEq
+                        |> combine)
+                sort (request.Sort.SortColumn
+                      |> Option.map toSearchColumns
+                      |> Option.defaultValue []
+                      |> List.map toFieldSort)
                 skip (request.Page * 20)
                 top 20
+                facets [ "Town"; "Locality"; "District"; "County"; "Price" ]
                 includeTotalResults
             }
         
@@ -188,15 +189,16 @@ let findGeneric searchConfig (request: FindGenericRequest) =
 let findByPostcode searchConfig (request: FindNearestRequest) =
     task { 
         let query =
-            let geoFilter = whereGeo (request.Geo.Long, request.Geo.Lat) Lt request.MaxDistance
-            let basicFilters =
-                request.Filter.AllFilters |> List.map (fun (field, value) -> where field Eq value)
-            searchQuery { 
-                filter ((geoFilter :: basicFilters) |> List.fold (+) DefaultFilter)
-                orderBy [ Geo(request.Geo.Long, request.Geo.Lat, Direction.Ascending) ]
-                facets [ "Town"; "Locality"; "District"; "County"; "Price" ]
+            let postcodeFilter =
+                let geoFilter = whereGeo (request.Geo.Long, request.Geo.Lat) Lt request.MaxDistance
+                let basicFilters = request.Filter.AllFilters |> List.map whereEq
+                combine (geoFilter :: basicFilters)
+            azureSearch { 
+                filter postcodeFilter
+                sort [ ByDistance(request.Geo.Long, request.Geo.Lat, Direction.Ascending) ]
                 skip (request.Page * 20)
                 top 20
+                facets [ "Town"; "Locality"; "District"; "County"; "Price" ]
                 includeTotalResults
             }
         
