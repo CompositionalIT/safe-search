@@ -11,7 +11,7 @@ group Server
     nuget TaskBuilder.fs
     nuget FSharp.Azure.StorageTypeProvider prerelease
     nuget FSharp.Data
-    nuget Microsoft.Azure.Search
+    github CompositionalIT/kibalta src/Kibalta.fs
 
 group Client
     source https://api.nuget.org/v3/index.json

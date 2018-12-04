@@ -190,7 +190,8 @@ let findByPostcode searchConfig (request: FindNearestRequest) =
     task { 
         let query =
             let postcodeFilter =
-                let geoFilter = whereGeo (request.Geo.Long, request.Geo.Lat) Lt request.MaxDistance
+                let geoFilter =
+                    whereGeo (request.Geo.Long, request.Geo.Lat) Lt (float request.MaxDistance)
                 let basicFilters = request.Filter.AllFilters |> List.map whereEq
                 combine (geoFilter :: basicFilters)
             azureSearch { 
