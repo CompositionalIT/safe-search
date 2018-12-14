@@ -8,6 +8,7 @@ group Server
     nuget FSharp.Core
     nuget Saturn
     nuget Thoth.Json.Giraffe
+    nuget Microsoft.ApplicationInsights.AspNetCore ~> 2.2
     nuget TaskBuilder.fs
     nuget FSharp.Azure.StorageTypeProvider prerelease
     nuget FSharp.Data
@@ -38,5 +39,9 @@ group Build
 
     nuget FSharp.Core 4.3.4 // https://github.com/fsharp/FAKE/issues/2001
     nuget Fake.Core.Target
+    nuget Fake.Core.Trace
     nuget Fake.DotNet.Cli
+    nuget Fake.Core.Environment
     nuget Fake.IO.FileSystem
+    nuget Fake.IO.Zip
+    github CompositionalIT/fshelpers src/FsHelpers/ArmHelper/ArmHelper.fs

@@ -2,8 +2,9 @@ group Server
 FSharp.Core
 Saturn
 Thoth.Json.Giraffe
-TaskBuilder.fs
 FSharp.Azure.StorageTypeProvider
 FSharp.Data
+TaskBuilder.fs
 Microsoft.Azure.Search
+Microsoft.ApplicationInsights.AspNetCore
 File: Kibalta.fs
