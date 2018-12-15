@@ -191,16 +191,17 @@ let updateSearchTextMsg msg (model : SearchDetails) =
 
 let updateSearchMsg msg model =
     match msg with
-    | StartSearch ->
+    | StartSearch -> 
         match Option.ofString model.SearchText with
-        | Some text ->
+        | Some text -> 
             let cmd =
                 let cmd =
                     match model.SelectedSearchMethod with
-                    | Standard -> Server.loadPropertiesNormal model.SearchText
+                    | Standard -> Server.loadPropertiesNormal text
                     | Location -> 
                         Server.loadPropertiesLocation 
-                            (model.SearchText, 1, model.SearchResults.CurrentView)
+                            (model.SearchText, 1, 
+                             model.SearchResults.CurrentView)
                 cmd 0 model.Sorting (Map.toSeq model.SelectedFacets)
             { model with Suggestions = [||]
                          SearchState = Searching }, cmd

@@ -5,9 +5,6 @@ open Fable.Helpers.React.Props
 open Fulma
 open Fulma.FontAwesome
 
-module Option =
-    let ofString s = if System.String.IsNullOrWhiteSpace s then None else Some s
-
 let createNavBar model dispatch =
     Navbar.navbar [] 
         [ Navbar.Brand.a 
@@ -469,29 +466,21 @@ let createFacets dispatch (model : Facets) selectedFacets =
                 [ Card.card [] 
                       [ Card.header [] [ Card.Header.title [] [ str title ] ]
                         
-                        Card.content [] 
-                            [ for item in items do
-                                  yield // Button.button 
-                                        //       [ Button.IsLink; 
-                                        //         Button.IsOutlined ] 
-                                        //       [ str item ]
-                                        Tag.tag 
-                                            [ Tag.Size IsMedium
-                                              
-                                              Tag.Props 
-                                                  [ Style [ Margin "2px" ] ] ] 
-                                            [ a [ OnClick(fun _ -> dispatch (SetFacet(facet, item, asTag item))) ] [ str (asTag item) ] ] ] ] ]
+                        Card.content [ ] 
+                            [ Tag.list [ Tag.List.IsCentered ] [
+                              //div [ Class "field is-grouped is-grouped-multiline" ] [
+                                for item in items do
+                                    yield Tag.tag [ Tag.Props [ OnClick(fun _ -> dispatch (SetFacet(facet, item, asTag item))) ]; Tag.Size IsMedium; Tag.Color IsInfo ] [ str (asTag item) ] ] ] ] ]
+//                                  yield a [ Class "tag is-info is-medium";  ] [ str (asTag item) ] ] ] ] ]
     div [] 
         [ Heading.h3 [] [ str "Filters" ]
-          div [ Class "field is-grouped is-grouped-multiline" ] [
-              let createRemoval (facetName, (_, description)) =
-                  div [ Class "control" ] [
-                  div [ Class "tags has-addons" ] [
+          Tag.list [] [
+              let createSelectedTag (facetName, (_, description)) =
+                  Tag.list [ Tag.List.HasAddons ] [
                       Tag.tag [ Tag.Color IsInfo ] [ str facetName ]
                       Tag.tag [ Tag.Color IsPrimary ] [ str description ]
-                      a [ Class "tag is-delete is-danger"; OnClick(fun _ -> dispatch (RemoveFacet facetName)) ] []
-                  ] ]
-              yield! selectedFacets |> Seq.map createRemoval ]
+                      Tag.delete [ Tag.Color IsDanger; Tag.Props [ OnClick(fun _ -> dispatch (RemoveFacet facetName)) ] ] [] ]
+              yield! selectedFacets |> Seq.map createSelectedTag ]
           Tile.tile [ Tile.IsAncestor
                       Tile.IsVertical
                       Tile.Size(Tile.ISize.Is12) ] 
