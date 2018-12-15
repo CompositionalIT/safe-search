@@ -25,16 +25,23 @@ module Server =
     let private locationResponseDecoder =
         Decode.Auto.generateDecoder<Result<Geo * SearchResponse, SearchError>>()
     
-    let private loadProperties decoder 
-        (onSuccess : _ -> Result<SearchResultType, SearchError>) uri page sort =
+    let private loadProperties decoder (onSuccess : _ -> Result<_, _>) uri page 
+        sort selectedFacets =
         let uri =
-            let uri = sprintf "/api/search/%s/%i" uri page
-            match sort with
-            | { SortColumn = Some column; SortDirection = Some direction } -> 
-                sprintf "%s?SortColumn=%s&SortDirection=%O" uri column direction
-            | { SortColumn = Some column; SortDirection = None } -> 
-                sprintf "%s?SortColumn=%s" uri column
-            | _ -> uri
+            let uri = sprintf "/api/search/%s/%i?" uri page
+            
+            let uri =
+                match sort with
+                | { SortColumn = Some column; SortDirection = Some direction } -> 
+                    sprintf "%sSortColumn=%s&SortDirection=%O" uri column 
+                        direction
+                | { SortColumn = Some column; SortDirection = None } -> 
+                    sprintf "%sSortColumn=%s" uri column
+                | _ -> uri
+            (uri, selectedFacets) 
+            ||> Seq.fold 
+                    (fun uri (facetName, (facetValue, _)) -> 
+                    sprintf "%s&%s=%s" uri facetName facetValue)
         
         let handleResult =
             function 
@@ -86,6 +93,7 @@ let defaultModel =
             SelectedProperty = None
             SearchError = None
             Suggestions = [||]
+            SelectedFacets = Map.empty
             IsTextDirty = false
             GoogleMapsKey = None
             Sorting =
@@ -183,17 +191,20 @@ let updateSearchTextMsg msg (model : SearchDetails) =
 
 let updateSearchMsg msg model =
     match msg with
-    | StartSearch -> 
-        let cmd =
-            match model.SelectedSearchMethod with
-            | Standard -> Server.loadPropertiesNormal model.SearchText
-            | Location -> 
-                Server.loadPropertiesLocation 
-                    (model.SearchText, 1, model.SearchResults.CurrentView)
-        
-        let cmd = cmd 0 model.Sorting
-        { model with Suggestions = [||]
-                     SearchState = Searching }, cmd
+    | StartSearch ->
+        match Option.ofString model.SearchText with
+        | Some text ->
+            let cmd =
+                let cmd =
+                    match model.SelectedSearchMethod with
+                    | Standard -> Server.loadPropertiesNormal model.SearchText
+                    | Location -> 
+                        Server.loadPropertiesLocation 
+                            (model.SearchText, 1, model.SearchResults.CurrentView)
+                cmd 0 model.Sorting (Map.toSeq model.SelectedFacets)
+            { model with Suggestions = [||]
+                         SearchState = Searching }, cmd
+        | None -> model, Cmd.none
     | SearchComplete results -> 
         { model with SearchResults = results
                      SearchState = CanSearch
@@ -231,6 +242,13 @@ let updateSearchMsg msg model =
             { model with SearchResults = LocationResponse(props, geo, view) }, 
             Cmd.none
     | LoadedConfig apiKey -> { model with GoogleMapsKey = apiKey }, Cmd.none
+    | SetFacet(facet, value, description) -> 
+        { model with SelectedFacets =
+                         model.SelectedFacets.Add(facet, (value, description)) }, 
+        Cmd.ofMsg (SearchMsg StartSearch)
+    | RemoveFacet facet -> 
+        { model with SelectedFacets = model.SelectedFacets.Remove facet }, 
+        Cmd.ofMsg (SearchMsg StartSearch)
 
 let update msg model =
     match msg with

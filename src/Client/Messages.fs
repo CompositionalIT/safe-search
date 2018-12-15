@@ -49,6 +49,7 @@ type SearchDetails =
       SelectedSearchMethod : SearchMethod
       SelectedProperty : PropertyResult option
       Sorting : Sort
+      SelectedFacets : Map<string, string * string>
       IsTextDirty : bool
       Suggestions : string array
       GoogleMapsKey : string option
@@ -83,6 +84,8 @@ type SearchMsg =
     | SetSorting of string
     | SetSearchMethod of SearchMethod
     | SearchTextMsg of SearchTextMsg
+    | SetFacet of Facet : string * Value : string * Description : string
+    | RemoveFacet of facet : string
     | SelectProperty of PropertyResult
     | DeselectProperty
     | ChangeView of ResultsView

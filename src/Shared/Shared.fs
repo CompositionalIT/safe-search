@@ -12,25 +12,25 @@ type SortDirection =
 
 [<CLIMutable>]
 type Sort =
-    { SortColumn: string option
-      SortDirection: SortDirection option }
+    { SortColumn : string option
+      SortDirection : SortDirection option }
 
 [<CLIMutable>]
 type PropertyFilter =
-    { Town: string option
-      Locality: string option
-      District: string option
-      County: string option
-      MaxPrice: int option
-      MinPrice: int option }
+    { Town : string option
+      Locality : string option
+      District : string option
+      County : string option
+      Price : int option }
     member this.AllFilters =
         seq { 
-            yield "TownCity", this.Town
-            yield "County", this.County
-            yield "Locality", this.Locality
-            yield "District", this.District
+            yield "Town", this.Town |> Option.map box
+            yield "County", this.County |> Option.map box
+            yield "Locality", this.Locality |> Option.map box
+            yield "District", this.District |> Option.map box
+            yield "Price", this.Price |> Option.map box
         }
-        |> Seq.choose(fun (a, b) -> b |> Option.map(fun b -> a, b))
+        |> Seq.choose (fun (a, b) -> b |> Option.map (fun b -> a, b))
         |> Seq.toList
 
 type PropertyTableColumn =
@@ -93,18 +93,18 @@ type ContractType =
         | _ -> Leasehold
 
 type Geo =
-    { Lat: float
-      Long: float }
+    { Lat : float
+      Long : float }
 
 type Address =
-    { Building: string
-      Street: string option
-      Locality: string option
-      TownCity: string
-      District: string
-      County: string
-      PostCode: string option
-      GeoLocation: Geo option }
+    { Building : string
+      Street : string option
+      Locality : string option
+      TownCity : string
+      District : string
+      County : string
+      PostCode : string option
+      GeoLocation : Geo option }
     member address.FirstLine =
         [ Some address.Building
           address.Street ]
@@ -112,28 +112,28 @@ type Address =
         |> String.concat " "
 
 type BuildDetails =
-    { PropertyType: PropertyType option
-      Build: BuildType
-      Contract: ContractType }
+    { PropertyType : PropertyType option
+      Build : BuildType
+      Contract : ContractType }
 
 type PropertyResult =
-    { BuildDetails: BuildDetails
-      Address: Address
-      Price: int
-      DateOfTransfer: DateTime }
+    { BuildDetails : BuildDetails
+      Address : Address
+      Price : int
+      DateOfTransfer : DateTime }
 
 type Facets =
-    { Towns: string list
-      Localities: string list
-      Districts: string list
-      Counties: string list
-      Prices: string list }
+    { Towns : string list
+      Localities : string list
+      Districts : string list
+      Counties : string list
+      Prices : string list }
 
 type SearchResponse =
-    { Results: PropertyResult array
-      TotalTransactions: int option
-      Page: int
-      Facets: Facets }
+    { Results : PropertyResult array
+      TotalTransactions : int option
+      Page : int
+      Facets : Facets }
     static member Empty =
         { Results = Array.empty
           TotalTransactions = None
@@ -146,15 +146,15 @@ type SearchResponse =
                 Prices = [] } }
 
 type SuggestResponse =
-    { Suggestions: string array }
+    { Suggestions : string array }
 
 type IndexState =
     | Idle
-    | Indexing of indexed: int
+    | Indexing of indexed : int
 
 type IndexStats =
-    { DocumentCount: int64
-      Status: IndexState }
+    { DocumentCount : int64
+      Status : IndexState }
 
 type SearchError = NoGeolocation of string
 
@@ -166,3 +166,8 @@ module Validation =
         Regex.IsMatch
             (postcode, 
              @"([Gg][Ii][Rr] 0[Aa]{2})|((([A-Za-z][0-9]{1,2})|(([A-Za-z][A-Ha-hJ-Yj-y][0-9]{1,2})|(([A-Za-z][0-9][A-Za-z])|([A-Za-z][A-Ha-hJ-Yj-y][0-9]?[A-Za-z]))))\s?[0-9][A-Za-z]{2})")
+
+module Option =
+    let ofString s =
+        if System.String.IsNullOrWhiteSpace s then None
+        else Some s

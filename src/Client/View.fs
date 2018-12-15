@@ -460,8 +460,8 @@ let createResultsGrid response model dispatch =
               yield makeMap (originGeo.Lat, originGeo.Long, originMarker) 
                         "largeMapcontainer" markers 16 model.GoogleMapsKey ]
 
-let createFacets (model : Facets) =
-    let createFacet title items =
+let createFacets dispatch (model : Facets) selectedFacets =
+    let createFacet title facet items asTag =
         match items with
         | [] -> div [] []
         | items -> 
@@ -480,21 +480,29 @@ let createFacets (model : Facets) =
                                               
                                               Tag.Props 
                                                   [ Style [ Margin "2px" ] ] ] 
-                                            [ a [] [ str item ] ] ] ] ]
+                                            [ a [ OnClick(fun _ -> dispatch (SetFacet(facet, item, asTag item))) ] [ str (asTag item) ] ] ] ] ]
     div [] 
         [ Heading.h3 [] [ str "Filters" ]
-          
+          div [ Class "field is-grouped is-grouped-multiline" ] [
+              let createRemoval (facetName, (_, description)) =
+                  div [ Class "control" ] [
+                  div [ Class "tags has-addons" ] [
+                      Tag.tag [ Tag.Color IsInfo ] [ str facetName ]
+                      Tag.tag [ Tag.Color IsPrimary ] [ str description ]
+                      a [ Class "tag is-delete is-danger"; OnClick(fun _ -> dispatch (RemoveFacet facetName)) ] []
+                  ] ]
+              yield! selectedFacets |> Seq.map createRemoval ]
           Tile.tile [ Tile.IsAncestor
                       Tile.IsVertical
                       Tile.Size(Tile.ISize.Is12) ] 
-              [ createFacet "Towns" model.Towns
-                createFacet "Localities" (model.Localities |> List.sort)
-                createFacet "Districts" (model.Districts |> List.sort)
-                createFacet "Counties" (model.Counties |> List.sort)
-                createFacet "Prices" (model.Prices
+              [ createFacet "Towns" "Town" model.Towns id
+                createFacet "Localities" "Locality" (model.Localities |> List.sort) id
+                createFacet "Districts" "District" (model.Districts |> List.sort) id
+                createFacet "Counties" "County" (model.Counties |> List.sort) id
+                createFacet "Prices" "Price" (model.Prices
                                       |> List.map int
                                       |> List.sortDescending
-                                      |> List.map asCurrency) ] ]
+                                      |> List.map string) (int >> asCurrency) ] ]
 
 let createSearchResults model dispatch =
     match model.SearchResults.Response with
@@ -510,7 +518,7 @@ let createSearchResults model dispatch =
             [ Columns.columns [] 
                   [ Column.column 
                         [ Column.Option.Width(Screen.All, Column.IsOneQuarter) ] 
-                        [ createFacets response.Facets ]
+                        [ createFacets (SearchMsg >> dispatch) response.Facets (Map.toSeq model.SelectedFacets) ]
                     
                     Column.column [] 
                         [ createResultsGrid response model 
