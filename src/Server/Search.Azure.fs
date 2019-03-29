@@ -175,7 +175,7 @@ let findGeneric searchConfig (request : FindGenericRequest) =
                     fun s -> ByField(s, Direction.Ascending)
                 | Some Descending -> fun s -> ByField(s, Direction.Descending)
             azureSearch { 
-                fulltext (request.Text |> Option.toObj)
+                fulltext (request.Text |> Option.map(sprintf "%s*") |> Option.toObj)
                 filter (request.Filter.AllFilters
                         |> List.map whereEq
                         |> combine)
