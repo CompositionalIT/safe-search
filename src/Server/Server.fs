@@ -16,22 +16,10 @@ let publicPath =
     |> Option.defaultValue "../Client/public"
     |> Path.GetFullPath
 
-let port = 8085us
-
-let webApp searcher appConfig =
-    router {
-        forward "/api/search/"
-            (Routers.Search.createRouter searcher appConfig
-                 (SafeSearch.Storage.tryGetGeo appConfig.AzureStorage))
-        forward "/api/transactions/"
-            (Routers.Transactions.createRouter searcher appConfig.AzureStorage)
-        forward "/api/postcodes/"
-            (Routers.Postcodes.createRouter appConfig.AzureStorage)
-    }
-
-let configureSerialization (services : IServiceCollection) =
-    services.AddSingleton<Giraffe.Serialization.Json.IJsonSerializer>
-        (Thoth.Json.Giraffe.ThothSerializer())
+let webApp searcher appConfig = router {
+    forward "/api/search/" (Routers.Search.createRouter searcher appConfig (SafeSearch.Storage.tryGetGeo appConfig.AzureStorage))
+    forward "/api/transactions/" (Routers.Transactions.createRouter searcher appConfig.AzureStorage)
+    forward "/api/postcodes/" (Routers.Postcodes.createRouter appConfig.AzureStorage) }
 
 let configureAppInsights (services : IServiceCollection) =
     match tryGetEnv "APPINSIGHTS_INSTRUMENTATIONKEY" with
@@ -40,7 +28,7 @@ let configureAppInsights (services : IServiceCollection) =
 
 let appConfig =
     let builder =
-        let path = Directory.GetCurrentDirectory()
+        let path = DirectoryInfo(Directory.GetCurrentDirectory()).Parent.FullName
         printfn "Searching for configuration in %s" path
         ConfigurationBuilder()
             .SetBasePath(path)
@@ -49,22 +37,19 @@ let appConfig =
             .Build()
     { AzureStorage = ConnectionString(builder.GetConnectionString "AzureStorage")
       GoogleMapsApiKey = builder.GetConnectionString "GoogleMapsApiKey"
-      AzureSearch =
-          ConnectionString(builder.GetConnectionString "AzureSearch"),
-          builder.["AzureSearchName"] }
+      AzureSearch = ConnectionString(builder.GetConnectionString "AzureSearch"), builder.["AzureSearchName"] }
 
 let searcher =
-    Search.Azure.Management.initialize Search.Azure.Management.OnlyIfNonExistant
-        appConfig.AzureSearch appConfig.AzureStorage
+    Search.Azure.Management.initialize Search.Azure.Management.OnlyIfNonExistant appConfig.AzureSearch appConfig.AzureStorage
     Search.Azure.searcher appConfig.AzureSearch appConfig.AzureStorage
 
 let app =
     application {
-        url ("http://0.0.0.0:" + port.ToString() + "/")
+        url "http://0.0.0.0:8085/"
         use_router (webApp searcher appConfig)
         memory_cache
         use_static publicPath
-        service_config configureSerialization
+        use_json_serializer (Thoth.Json.Giraffe.ThothSerializer())
         service_config configureAppInsights
         use_gzip
     }

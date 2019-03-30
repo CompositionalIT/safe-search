@@ -101,8 +101,12 @@ Target.create "Run" (fun _ ->
 let zipFile = "deploy.zip"
 
 Target.create "Bundle" (fun _ ->
-    runDotNet (sprintf "publish \"%s\" -c release -o \"%s\"" serverPath deployDir) __SOURCE_DIRECTORY__
-    Shell.copyDir (Path.combine deployDir "public") (Path.combine clientPath "deploy") FileFilter.allFiles
+    let publishArgs = sprintf "publish -c Release -o \"%s\"" deployDir
+    runDotNet publishArgs serverPath
+
+    let publicDir = Path.combine deployDir "public"
+    Shell.copyDir publicDir clientDeployPath FileFilter.allFiles
+
     File.Delete zipFile
     Zip.zip deployDir zipFile !!(deployDir + @"\**\**"))
 
