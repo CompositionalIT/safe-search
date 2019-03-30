@@ -102,7 +102,7 @@ let zipFile = "deploy.zip"
 
 Target.create "Bundle" (fun _ ->
     runDotNet (sprintf "publish \"%s\" -c release -o \"%s\"" serverPath deployDir) __SOURCE_DIRECTORY__
-    Shell.copyDir (Path.combine deployDir "public") (Path.combine clientPath "public") FileFilter.allFiles
+    Shell.copyDir (Path.combine deployDir "public") (Path.combine clientPath "deploy") FileFilter.allFiles
     File.Delete zipFile
     Zip.zip deployDir zipFile !!(deployDir + @"\**\**"))
 
@@ -174,5 +174,5 @@ Target.create "AppService" (fun _ ->
     client.UploadData(destinationUri, File.ReadAllBytes zipFile) |> ignore)
 
 "Clean" ==> "InstallClient" ==> "Build" ==> "Bundle" ==> "ArmTemplate" ==> "AppService"
-"Clean" ==> "InstallClient" ==> "Run"
+"InstallClient" ==> "Run"
 Target.runOrDefaultWithArguments "Build"
