@@ -11,10 +11,10 @@
         "pricingTier": {
             "type": "string"
         },
-        "storageConnection": {
+        "azureStorageConnection": {
             "type": "string"
         },
-        "searchConnection": {
+        "azureSearchConnection": {
             "type": "string"
         },
         "azureSearchName": {
@@ -88,11 +88,11 @@
                         },
                         {
                             "name": "ConnectionStrings:AzureSearch",
-                            "value": "[parameters('searchConnection')]"
+                            "value": "[parameters('azureSearchConnection')]"
                         },
                         {
                             "name": "ConnectionStrings:AzureStorage",
-                            "value": "[parameters('storageConnection')]"
+                            "value": "[parameters('azureStorageConnection')]"
                         }
                     ]
                 }

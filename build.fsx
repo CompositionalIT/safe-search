@@ -20,13 +20,10 @@ open System.Net
 
 #load "paket-files/build/CompositionalIT/fshelpers/src/FsHelpers/ArmHelper/ArmHelper.fs"
 
-open Fake.Core
-
 let serverPath = Path.getFullName "./src/Server"
 let clientPath = Path.getFullName "./src/Client"
 let clientDeployPath = Path.combine clientPath "deploy"
 let deployDir = Path.getFullName "./deploy"
-
 
 let platformTool tool winTool =
     let tool = if Environment.isUnix then tool else winTool
@@ -124,7 +121,7 @@ Target.create "ArmTemplate" (fun _ ->
         // You can safely replace these with your own subscription and client IDs hard-coded into this script.
         let subscriptionId = Environment.environVarOrFail "subscriptionId" |> Guid.Parse
         let clientId = Environment.environVarOrFail "clientId" |> Guid.Parse
-        let clientSecret = Environment.environVarOrFail "clientSecret"
+        let clientSecret = (Environment.environVarOrFail "clientSecret").Replace("\"", "")
         let tenantId = Environment.environVarOrFail "tenantId" |> Guid.Parse
 
         Trace.tracefn "Deploying template '%s' to resource group '%s' in subscription '%O'..." armTemplate resourceGroupName subscriptionId
@@ -143,9 +140,9 @@ Target.create "ArmTemplate" (fun _ ->
               Simple [ "environment", ArmString environment
                        "location", ArmString location
                        "pricingTier", ArmString (Environment.environVarOrDefault "pricingTier" "F1")
-                       "searchName" |> envAsArmString
-                       "storageConnection" |> envAsArmString
-                       "searchConnection" |> envAsArmString
+                       "azureSearchName" |> envAsArmString
+                       "azureStorageConnection" |> envAsArmString
+                       "azureSearchConnection" |> envAsArmString
                        "googleMapsApiKey" |> envAsArmString ]
           DeploymentMode = Incremental }
 
