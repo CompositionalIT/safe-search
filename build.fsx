@@ -134,10 +134,10 @@ Target.create "ArmTemplate" (fun _ ->
         |> authenticate { ClientId = clientId; TenantId = tenantId; ClientSecret = clientSecret }
 
     let deployment =
-        let envAsArmString k = k, ArmString (Environment.environVarOrFail k)
+        let envAsArmString key = key, ArmString (Environment.environVarOrFail key)
         let location = Environment.environVarOrDefault "location" Region.EuropeWest.Name
 
-        { DeploymentName = "SAFE-template-deploy"
+        { DeploymentName = sprintf "SAFE-template-deploy-%O" (Guid.NewGuid())
           ResourceGroup = New(resourceGroupName, Region.Create location)
           ArmTemplate = File.ReadAllText armTemplate
           Parameters =

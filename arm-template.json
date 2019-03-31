@@ -26,7 +26,7 @@
     },
     "variables": {
         "environment": "[toLower(parameters('environment'))]",
-        "prefix": "[concat('safe-', variables('environment'))]",
+        "prefix": "[concat('safe-search-', variables('environment'))]",
         "appServicePlan": "[concat(variables('prefix'), '-web-host')]",
         "web": "[concat(variables('prefix'), '-web')]",
         "insights": "[concat(variables('prefix'), '-insights')]"
