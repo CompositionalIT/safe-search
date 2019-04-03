@@ -6,6 +6,7 @@ group Server
     storage: none
 
     nuget FSharp.Core
+nuget Microsoft.AspNetCore.WebSockets
     nuget Saturn
     nuget Thoth.Json.Giraffe
     nuget Microsoft.ApplicationInsights.AspNetCore ~> 2.2

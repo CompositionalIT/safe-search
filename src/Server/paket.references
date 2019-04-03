@@ -7,4 +7,5 @@ FSharp.Data
 TaskBuilder.fs
 Microsoft.Azure.Search
 Microsoft.ApplicationInsights.AspNetCore
-File: Kibalta.fs
+Microsoft.AspNetCore.WebSockets
+File:Kibalta.fs

@@ -4,6 +4,54 @@ open Microsoft.Extensions.Configuration
 open Microsoft.Extensions.DependencyInjection
 open Saturn
 open System.IO
+open System.Net.WebSockets
+open System
+open System.Threading
+open Microsoft.AspNetCore.Http
+open System.Threading.Tasks
+
+type WebSocketMessage =
+    | Connect of WebSocket
+    | Send of string
+
+let createWebSocketServer () = MailboxProcessor.Start(fun mailbox ->
+    let rec runLoop (websockets:WebSocket list) =
+        async {
+            let! msg = mailbox.Receive()
+            match msg with
+            | Connect ws ->
+                return! runLoop (ws::websockets)
+            | Send msg ->
+                let msg = System.Text.ASCIIEncoding.ASCII.GetBytes msg |> ArraySegment
+                do!
+                    websockets
+                    |> Seq.map (fun ws -> if ws.State = WebSocketState.Open then ws.SendAsync(msg, WebSocketMessageType.Text, true, CancellationToken.None) |> Async.AwaitTask |> Async.Ignore else async { return () })
+                    |> Async.Parallel
+                    |> Async.Ignore
+        }
+    runLoop [])
+
+let websocket = createWebSocketServer ()
+
+let wsListen (ws:WebSocket) =
+    let buffer : byte [] = Array.zeroCreate 1024
+    let rec loop () = 
+        async {
+            let buffer = ArraySegment(buffer)
+            let! _ = ws.ReceiveAsync(buffer, CancellationToken.None) |> Async.AwaitTask
+            return! loop()
+        }
+    loop ()
+
+type WebSocketMiddleware(next : RequestDelegate) =
+    member __.Invoke(ctx : HttpContext) =
+        async {
+            if ctx.WebSockets.IsWebSocketRequest && ctx.Request.Path = PathString("/websocket") then
+                let! ws = ctx.WebSockets.AcceptWebSocketAsync() |> Async.AwaitTask
+                do! wsListen ws
+            else
+                return! next.Invoke(ctx) |> Async.AwaitTask }
+        |> Async.StartAsTask :> Task
 
 let tryGetEnv =
     System.Environment.GetEnvironmentVariable
