@@ -1,4 +1,5 @@
 source https://www.nuget.org/api/v2
+version 5.197.0
 
 group Server
     source https://api.nuget.org/v3/index.json
@@ -9,6 +10,8 @@ group Server
     nuget Saturn
     nuget Thoth.Json.Giraffe
     nuget Microsoft.ApplicationInsights.AspNetCore ~> 2.2
+	nuget Microsoft.AspNetCore.Authentication.OpenIdConnect
+	nuget Microsoft.AspNetCore.Authentication.Cookies
     nuget TaskBuilder.fs
     nuget FSharp.Azure.StorageTypeProvider prerelease
     nuget FSharp.Data

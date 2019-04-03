@@ -8,6 +8,7 @@
       <Paket>True</Paket>
       <Link>paket-files/Kibalta.fs</Link>
     </Compile>
+    <None Include="paket.references" />
     <Compile Include="Helpers.fs" />
     <Compile Include="../Shared/Shared.fs" />
     <Compile Include="Configuration.fs" />

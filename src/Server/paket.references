@@ -7,4 +7,6 @@ FSharp.Data
 TaskBuilder.fs
 Microsoft.Azure.Search
 Microsoft.ApplicationInsights.AspNetCore
-File: Kibalta.fs
+Microsoft.AspNetCore.Authentication.OpenIdConnect
+Microsoft.AspNetCore.Authentication.Cookies
+File:Kibalta.fs
