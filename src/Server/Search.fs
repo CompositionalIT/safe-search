@@ -18,3 +18,4 @@ type ISearch =
     abstract Suggest : SuggestRequest -> SuggestResponse Task
     abstract Documents : unit -> int64 Task
     abstract Clear : unit -> unit
+    abstract IndexerStats : unit -> unit Task
