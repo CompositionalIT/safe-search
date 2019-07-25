@@ -868,7 +868,7 @@ STORAGE: NONE
 RESTRICTION: == netcoreapp2.1
 NUGET
   remote: https://api.nuget.org/v3/index.json
-    FSharp.Azure.StorageTypeProvider (2.0.0-beta)
+    FSharp.Azure.StorageTypeProvider (2.0.1)
       FSharp.Compiler.Tools (>= 10.2.1)
       WindowsAzure.Storage (>= 9.3.2)
     FSharp.Compiler.Tools (10.2.1)
@@ -1957,6 +1957,6 @@ NUGET
       Newtonsoft.Json (>= 10.0.2)
 GITHUB
   remote: CompositionalIT/kibalta
-    src/Kibalta.fs (abbb1c287245047b43f9f3cdeeb616080794baad)
+    src/Kibalta.fs (3d9df49aa88c1741301d7e53feb384cfed04b2cc)
       Microsoft.Azure.Search
       TaskBuilder.fs

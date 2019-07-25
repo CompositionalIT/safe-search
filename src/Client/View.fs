@@ -1,13 +1,15 @@
 module SafeSearch.View
 
+open Fable.Core.JsInterop
 open Fable.Helpers.React
 open Fable.Helpers.React.Props
+open Fable.Helpers.ReactGoogleMaps
+open Fable.Helpers.ReactGoogleMaps.Props
 open Fulma
 open Fulma.FontAwesome
 
 let createNavBar model dispatch =
     Navbar.navbar [] [
-
         Navbar.Brand.a [ GenericOption.Props [ Href "https://safe-stack.github.io/docs/" ] ] [
             Navbar.Item.div [] [
                 img [ Src "/Images/safe_favicon.png" ]
@@ -27,195 +29,207 @@ let createNavBar model dispatch =
 
             let createImportButton index =
                 Navbar.Item.div [] [
-                    Button.button
-                        [ if isIndexing then yield Button.Disabled true
-                          yield Button.Color IsInfo
-                          yield Button.OnClick (fun _ -> dispatch (StartIndexing index)) ] [
-
+                    Button.button [
+                        if isIndexing then yield Button.Disabled true
+                        yield Button.Color IsInfo
+                        yield Button.OnClick (fun _ -> dispatch (StartIndexing index))
+                    ] [
                         str (sprintf "Import %s" index.Endpoint)
                     ]
                 ]
             let statsText =
                 model.IndexStats
                 |> Map.toSeq
-                |> Seq.map (fun (index, stats) ->
-                      sprintf "%s %s" (Update.printNumber stats.DocumentCount) index)
+                |> Seq.map (fun (index, stats) -> sprintf "%s %s" (Update.printNumber stats.DocumentCount) index)
                 |> String.concat " and "
                 |> sprintf "%s indexed."
 
-            yield Navbar.Item.div [] [
-                str statsText
-            ]
+            yield Navbar.Item.div [] [ str statsText ]
         ]
     ]
 
-let createSearchPanel model dispatch =
-    let makeDropDownItem searchMethod currentSearchMethod icon isActive =
+module Helpers =
+    let makeDropDownItem dispatch searchMethod currentSearchMethod icon isActive =
         Dropdown.Item.a [
             Dropdown.Item.IsActive(isActive currentSearchMethod)
-            Dropdown.Item.Props [
-                OnClick(fun _ -> dispatch (SetSearchMethod searchMethod)) ]
-            ] [
-                Icon.faIcon [ Icon.Size IsSmall ] [ Fa.icon icon ]
-                str (sprintf "%O Search" searchMethod)
+            Dropdown.Item.Props [ OnClick(fun _ -> dispatch (SetSearchMethod searchMethod)) ]
+        ] [
+            Icon.faIcon [ Icon.Size IsSmall ] [ Fa.icon icon ]
+            str (sprintf "%O Search" searchMethod)
         ]
 
-    Container.container [] [
+module SearchPanel =
+    let heading = [
         Heading.h3 [] [
-            Icon.faIcon [ Icon.Modifiers [ Modifier.TextColor IColor.IsInfo ] ] [ Fa.icon Fa.I.Home ]
-            span [] [ str " SAFE Search" ]
+            Icon.faIcon [ Icon.Modifiers [ Modifier.TextColor IColor.IsInfo ] ] [
+                Fa.icon Fa.I.Home
+            ]
+            span [] [
+                str " SAFE Search"
+            ]
         ]
 
         Heading.h5 [ Heading.IsSubtitle ] [
             str "Find your unaffordable property in the UK!"
         ]
-
-        Columns.columns [] [
-            Column.column [ Column.Option.Width(Screen.All, Column.IsThreeFifths) ] [
-                yield Control.div [ Control.HasIconLeft ] [
-                    Input.text [
-                        match Option.ofString model.SearchText with
-                        | Some _ ->
-                            ()
-                        | _ ->
-                            yield Input.Option.Placeholder "Enter your search term here."
-
-                        match model.SearchError, model.SearchState with
-                        | Some _, _
-                        | None, CannotSearch InvalidPostcode ->
-                            yield Input.Option.Color IColor.IsDanger
-                        | None, (Searching | CannotSearch NoSearchText | CanSearch) ->
-                            yield Input.Option.Color IColor.IsPrimary
-
-                        if model.IsTextDirty then yield Input.Value model.SearchText
-
-                        match model.SearchState with
-                        | Searching ->
-                            yield Input.Disabled true
-                        | CannotSearch _
-                        | CanSearch ->
-                            ()
-                        yield Input.OnChange (fun e ->
-                            dispatch (SearchTextMsg (SetSearchText (e.Value, UserAction))))
-                    ]
-
-                    Icon.faIcon [ Icon.Size IsSmall; Icon.IsLeft ] [
-                        Fa.icon Fa.I.Search
-                    ]
-                ]
-                yield Dropdown.dropdown [ Dropdown.IsActive (not (Array.isEmpty model.Suggestions)) ] [
-                    Dropdown.menu [] [
-                        Dropdown.content [] [
-                            for suggestion in model.Suggestions do
-                                yield Dropdown.Item.a [
-                                    Dropdown.Item.Props [
-                                        OnClick (fun _ ->
-                                            dispatch (SearchTextMsg (SetSearchText (sprintf "\"%s\"" suggestion, SystemAction)))
-                                            dispatch StartSearch) ]
-                                ] [
-                                    str suggestion
-                                ]
-                        ]
-                    ]
-                ]
+    ]
+    let searchBox dispatch model =
+        Control.div [ Control.HasIconLeft ] [
+            Input.text [
+                match Option.ofString model.SearchText with
+                | Some _ ->
+                    ()
+                | _ ->
+                    yield Input.Option.Placeholder "Enter your search term here."
 
                 match model.SearchError, model.SearchState with
-                | Some searchError, _ ->
-                    yield Help.help [ Help.Color IsDanger ] [
-                        match searchError with
-                        | NoGeolocation postcode ->
-                            yield str (sprintf "Unable to locate geolocation details for postcode '%s'." postcode)
-                    ]
-
-                | None, (CannotSearch NoSearchText | CanSearch) ->
-                    yield Help.help [ Help.Color IsInfo ] [
-                        match Option.ofString model.SearchText, model.SelectedSearchMethod with
-                        | None, Standard ->
-                            yield str "Search for a property by street, town, postcode or district e.g. 'Tottenham'."
-                        | None, Location ->
-                            yield str "Enter a postcode to search by location e.g. 'EC2A 4NE'"
-                        | Some _, _ ->
-                            ()
-                    ]
-
-                | None, Searching ->
-                    yield Help.help [ Help.Color IsInfo ] [
-                        str "Searching, please wait..."
-                    ]
-
+                | Some _, _
                 | None, CannotSearch InvalidPostcode ->
-                    yield Help.help [ Help.Color IsDanger ] [
-                        str "This is not a valid postcode."
-                    ]
+                    yield Input.Option.Color IColor.IsDanger
+                | None, (Searching | CannotSearch NoSearchText | CanSearch) ->
+                    yield Input.Option.Color IColor.IsPrimary
+
+                if model.IsTextDirty then yield Input.Value model.SearchText
+
+                match model.SearchState with
+                | Searching ->
+                    yield Input.Disabled true
+                | CannotSearch _
+                | CanSearch ->
+                    ()
+                yield Input.OnChange (fun e ->
+                    dispatch (SearchTextMsg (SetSearchText (e.Value, UserAction))))
             ]
 
-            Column.column [ Column.Option.Width(Screen.All, Column.IsOneFifth) ] [
-                Button.a [
-                    yield Button.IsFullWidth
-                    yield Button.Color IsPrimary
-                    match model.SearchState with
-                    | CannotSearch _ ->
-                        yield Button.Disabled true
-                    | Searching ->
-                        yield Button.IsLoading true
-                    | CanSearch ->
-                        yield Button.OnClick(fun _ -> dispatch StartSearch)
-                ] [
-                    Icon.faIcon [] [ Fa.icon Fa.I.Search ]
-                    span [] [ str "Search" ]
+            Icon.faIcon [ Icon.Size IsSmall; Icon.IsLeft ] [
+                Fa.icon Fa.I.Search
+            ]
+        ]
+    let infoPanel model =
+        match model.SearchError, model.SearchState with
+        | Some searchError, _ ->
+            Help.help [ Help.Color IsDanger ] [
+                match searchError with
+                | NoGeolocation postcode ->
+                    yield str (sprintf "Unable to locate geolocation details for postcode '%s'." postcode)
+            ]
+        | None, (CannotSearch NoSearchText | CanSearch) ->
+            Help.help [ Help.Color IsInfo ] [
+                match Option.ofString model.SearchText, model.SelectedSearchMethod with
+                | None, Standard ->
+                    yield str "Search for a property by street, town, postcode or district e.g. 'Tottenham'."
+                | None, Location ->
+                    yield str "Enter a postcode to search by location e.g. 'EC2A 4NE'"
+                | Some _, _ ->
+                    ()
+            ]
+        | None, Searching ->
+            Help.help [ Help.Color IsInfo ] [
+                str "Searching, please wait..."
+            ]
+        | None, CannotSearch InvalidPostcode ->
+            Help.help [ Help.Color IsDanger ] [
+                str "This is not a valid postcode."
+            ]
+    let suggestions dispatch model =
+        Dropdown.dropdown [ Dropdown.IsActive (not (Array.isEmpty model.Suggestions)) ] [
+            Dropdown.menu [] [
+                Dropdown.content [] [
+                    for suggestion in model.Suggestions do
+                        yield Dropdown.Item.a [
+                            Dropdown.Item.Props [
+                                OnClick (fun _ ->
+                                    dispatch (SearchTextMsg (SetSearchText (sprintf "\"%s\"" suggestion, SystemAction)))
+                                    dispatch StartSearch) ]
+                        ] [
+                            str suggestion
+                        ]
                 ]
             ]
-
-            Column.column [ Column.Option.Width(Screen.All, Column.IsOneFifth) ] [
-                Dropdown.dropdown [ Dropdown.IsHoverable ] [
-                    div [] [
-                        Button.button [] [
-                            span [] [
-                                let icon =
-                                    match model.SelectedSearchMethod with
-                                    | Standard ->
-                                        Fa.I.Search
-                                    | Location ->
-                                        Fa.I.LocationArrow
-                                yield Icon.faIcon [ Icon.Size IsSmall ] [ Fa.icon icon ]
-                                yield span [] [
-                                    str (sprintf "%O Search" model.SelectedSearchMethod)
-                                ]
-                            ]
-                            Icon.faIcon [ Icon.Size IsSmall ] [ Fa.icon Fa.I.AngleDown ]
+        ]
+    let searchButton dispatch model =
+        Button.a [
+            yield Button.IsFullWidth
+            yield Button.Color IsPrimary
+            match model.SearchState with
+            | CannotSearch _ ->
+                yield Button.Disabled true
+            | Searching ->
+                yield Button.IsLoading true
+            | CanSearch ->
+                yield Button.OnClick(fun _ -> dispatch StartSearch)
+        ] [
+            Icon.faIcon [] [
+                Fa.icon Fa.I.Search ]
+            span [] [
+                str "Search" ]
+        ]
+    let searchTypeDropDown dispatch model =
+        Dropdown.dropdown [ Dropdown.IsHoverable ] [
+            div [] [
+                Button.button [] [
+                    span [] [
+                        let icon =
+                            match model.SelectedSearchMethod with
+                            | Standard ->
+                                Fa.I.Search
+                            | Location ->
+                                Fa.I.LocationArrow
+                        yield Icon.faIcon [ Icon.Size IsSmall ] [
+                            Fa.icon icon
                         ]
-
-                        Dropdown.menu [] [
-                            Dropdown.content [] [
-                                makeDropDownItem
-                                    Standard
-                                    model.SelectedSearchMethod
-                                    Fa.I.Search (function
-                                    | Standard -> true
-                                    | _ -> false)
-                                makeDropDownItem
-                                    Location
-                                    model.SelectedSearchMethod
-                                    Fa.I.LocationArrow (function
-                                    | Location -> true
-                                    | _ -> false)
-                            ]
+                        yield span [] [
+                            str (sprintf "%O Search" model.SelectedSearchMethod)
                         ]
+                    ]
+                    Icon.faIcon [ Icon.Size IsSmall ] [
+                        Fa.icon Fa.I.AngleDown
+                    ]
+                ]
+
+                Dropdown.menu [] [
+                    Dropdown.content [] [
+                        Helpers.makeDropDownItem
+                            dispatch
+                            Standard
+                            model.SelectedSearchMethod
+                            Fa.I.Search (function
+                            | Standard -> true
+                            | _ -> false)
+                        Helpers.makeDropDownItem
+                            dispatch
+                            Location
+                            model.SelectedSearchMethod
+                            Fa.I.LocationArrow (function
+                            | Location -> true
+                            | _ -> false)
                     ]
                 ]
             ]
         ]
-    ]
+    let createSearchPanel model dispatch =
+        Container.container [] [
+            yield! heading
+            yield Columns.columns [] [
+                Column.column [ Column.Option.Width(Screen.All, Column.IsThreeFifths) ] [
+                    yield searchBox dispatch model
+                    yield suggestions dispatch model
+                    yield infoPanel model
+                ]
 
-open Fable.Core.JsInterop
-open Fable.Helpers.ReactGoogleMaps
-open Fable.Helpers.ReactGoogleMaps.Props
+                Column.column [ Column.Option.Width(Screen.All, Column.IsOneFifth) ] [
+                    searchButton dispatch model
+                ]
 
+                Column.column [ Column.Option.Width(Screen.All, Column.IsOneFifth) ] [
+                    searchTypeDropDown dispatch model
+                ]
+            ]
+        ]
 let asCurrency =
     int64
     >> Update.printNumber
     >> sprintf "£%s"
-
 let makeMap (lat, long, originMarker) container markers zoomLevel apiKey =
     let center = Fable.Helpers.GoogleMaps.Literal.createLatLng lat long
     Box.box' []
@@ -228,7 +242,6 @@ let makeMap (lat, long, originMarker) container markers zoomLevel apiKey =
                 yield MapProperties.DefaultZoom zoomLevel
                 yield MapProperties.Markers
                     (Array.append [| (originMarker center) |] markers) ] ]
-
 let createResultsGrid response model dispatch =
     let sortableColumn title =
         a [ OnClick(fun _ -> dispatch (SetSorting title)) ] [ str title ]
@@ -248,7 +261,9 @@ let createResultsGrid response model dispatch =
           | LocationResponse _ ->
               yield basicBuilder name ]
     div [] [
-        yield Heading.h3 [] [ str "Results" ]
+        yield Heading.h3 [] [
+            str "Results"
+        ]
         yield Tabs.tabs [ Tabs.Size IsLarge; Tabs.IsBoxed ] [
             let makeTab active icon text viewType =
                 Tabs.tab [ Tabs.Tab.IsActive active ] [
@@ -258,15 +273,15 @@ let createResultsGrid response model dispatch =
                     ]
                 ]
             yield makeTab
-                      (model.SearchResults.CurrentView = ResultsList)
-                      Fa.I.List "List"
-                      ResultsList
+                    (model.SearchResults.CurrentView = ResultsList)
+                    Fa.I.List "List"
+                    ResultsList
             match model.SearchResults with
             | LocationResponse _ ->
                 yield makeTab
-                          (model.SearchResults.CurrentView = ResultsMap)
-                          Fa.I.Map "Map"
-                          ResultsMap
+                        (model.SearchResults.CurrentView = ResultsMap)
+                        Fa.I.Map "Map"
+                        ResultsMap
             | StandardResponse _ ->
                 ()
         ]
@@ -274,10 +289,14 @@ let createResultsGrid response model dispatch =
         match model.SearchResults with
         | LocationResponse(_, _, ResultsList)
         | StandardResponse _ ->
-            yield Table.table [ Table.IsFullWidth; Table.IsBordered; Table.IsHoverable; Table.IsStriped ] [
+            yield Table.table [
+                    Table.IsFullWidth
+                    Table.IsBordered
+                    Table.IsHoverable
+                    Table.IsStriped ] [
                 thead [] [
                     tr [] [
-                        yield th [ Style [ Width "1px" ] ] []
+                        yield th [ Style [ Width "1px" ] ] [ ]
                         let maybeSortableColumn = maybeSortableColumn model.SearchResults
                         yield th [ Style [ Width "1px" ] ]
                             (maybeSortableColumn str sortableColumn "Date" model.Sorting)
@@ -288,7 +307,9 @@ let createResultsGrid response model dispatch =
                         yield th []
                             (maybeSortableColumn str sortableColumn "Town" model.Sorting)
                         yield th [] [ str "County" ]
-                        yield th [] [ str "Postcode" ] ] ]
+                        yield th [] [ str "Postcode" ]
+                    ]
+                ]
                 tbody [] [
                     for result in response.Results ->
                         tr [] [
@@ -372,7 +393,6 @@ let createResultsGrid response model dispatch =
                 16
                 model.GoogleMapsKey
     ]
-
 let createFacets dispatch (model : Facets) selectedFacets =
     let createFacet title facet items asTag =
         match items with
@@ -419,7 +439,6 @@ let createFacets dispatch (model : Facets) selectedFacets =
                                           |> List.map string) (int >> asCurrency)
         ]
     ]
-
 let createSearchResults model dispatch =
     match model.SearchResults.Response with
     | { Results = [||] } ->
@@ -439,7 +458,6 @@ let createSearchResults model dispatch =
                 ]
             ]
         ]
-
 let createPropertyPopup (propertyResult : PropertyResult) apiKey closeModal =
     let propField label values =
         Field.div [ Field.IsHorizontal ] [
@@ -520,14 +538,12 @@ let createPropertyPopup (propertyResult : PropertyResult) apiKey closeModal =
 let view model dispatch =
     div [] [
         yield createNavBar model (IndexMsg >> dispatch)
-        let searchPanelOpts =
-            match model.Search.SearchResults.Response.Results with
-            | [||] ->
-                [ Section.IsLarge ]
-            | _ ->
-                []
+        let searchPanelOpts = [
+            if Array.isEmpty model.Search.SearchResults.Response.Results then
+                yield Section.IsLarge
+        ]
         yield Section.section searchPanelOpts [
-            createSearchPanel model.Search (SearchMsg >> dispatch)
+            SearchPanel.createSearchPanel model.Search (SearchMsg >> dispatch)
         ]
         yield section [] [
             createSearchResults model.Search dispatch
