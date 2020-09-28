@@ -5,17 +5,6 @@ open Microsoft.Extensions.DependencyInjection
 open Saturn
 open System.IO
 
-let tryGetEnv =
-    System.Environment.GetEnvironmentVariable
-    >> function
-    | null | "" -> None
-    | x -> Some x
-
-let publicPath =
-    tryGetEnv "public_path"
-    |> Option.defaultValue "../Client/public"
-    |> Path.GetFullPath
-
 let webApp searcher appConfig = router {
     forward "/api/search/" (Routers.Search.createRouter searcher appConfig (SafeSearch.Storage.tryGetGeo appConfig.AzureStorage))
     forward "/api/transactions/" (Routers.Transactions.createRouter searcher appConfig.AzureStorage)
@@ -45,10 +34,10 @@ let searcher =
 
 let app =
     application {
-        url "http://0.0.0.0:8085/"
+        url "http://0.0.0.0:8085"
         use_router (webApp searcher appConfig)
         memory_cache
-        use_static publicPath
+        use_static "public"
         use_json_serializer (Thoth.Json.Giraffe.ThothSerializer())
         service_config configureAppInsights
         use_gzip

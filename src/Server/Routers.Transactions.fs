@@ -84,8 +84,8 @@ let uploadTransactions(ConnectionString storageConnection) =
         for (i, chunk) in (txnData |> Seq.chunkBySize 10000 |> Seq.indexed) do
             let json = chunk |> Array.map encode |> Encode.array |> Encode.toString 4
             printfn "Uploading %d..." i
-            let b = Storage.Azure.Containers.properties.[sprintf "%d.json" i]
-            do! b.AsCloudBlockBlob(storageConnection).UploadTextAsync(json)
+//            let b = Storage.Azure.Containers.properties.[sprintf "%d.json" i]
+//            do! b.AsCloudBlockBlob(storageConnection).UploadTextAsync(json)
             onComplete(chunk.Length, 0)
         }
     
