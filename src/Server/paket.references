@@ -5,4 +5,5 @@ Thoth.Json.Giraffe
 FSharp.Data
 TaskBuilder.fs
 Microsoft.Azure.Search
+Azure.Storage.Blobs
 File: Kibalta.fs

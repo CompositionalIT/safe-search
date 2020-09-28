@@ -51,10 +51,7 @@ module Management =
         fun searchConfig ->
             if not (connections.ContainsKey searchConfig) then
                 let (ConnectionString c) = (fst searchConfig)
-                connections.[searchConfig] <- new SearchServiceClient(snd
-                                                                          searchConfig,
-                                                                      SearchCredentials
-                                                                          c)
+                connections.[searchConfig] <- new SearchServiceClient(snd searchConfig, SearchCredentials c)
             connections.[searchConfig]
 
     let propertiesIndex searchConfig =
@@ -69,38 +66,38 @@ module Management =
         let client = searchClient searchConfig
         // index
         match initMode, client.Indexes.Exists indexName with
-        | ForceReset, _ | _, false ->
+        | ForceReset, _
+        | _, false ->
             client.Indexes.Delete indexName
             let index =
-                Models.Index
-                    (Name = indexName,
-                     Fields = FieldBuilder.BuildForType<SearchableProperty>(),
-                     Suggesters = [| Suggester
-                                         (Name = suggesterName,
-                                          SourceFields = [| "Street"; "Locality";
-                                                            "Town"; "District";
-                                                            "County" |]) |])
+                Models.Index (
+                    Name = indexName,
+                    Fields = FieldBuilder.BuildForType<SearchableProperty>(),
+                    Suggesters = [|
+                        Suggester (
+                            Name = suggesterName,
+                            SourceFields = [|
+                                "Street"; "Locality";
+                                "Town"; "District";
+                                "County"
+                            |]
+                        )
+                    |]
+                )
             client.Indexes.Create index |> ignore
-            // datasource for indexer
-            // async {
-            //     let! _ = Storage.Azure.Containers.properties.AsCloudBlobContainer(storageConfig)
-            //                     .CreateIfNotExistsAsync() |> Async.AwaitTask
-            //     let! blobs = Storage.Azure.Containers.properties.ListBlobs
-            //                      (connectionString = storageConfig)
-            //     return! blobs
-            //             |> Array.map
-            //                    (fun b ->
-            //                    b.AsICloudBlob().DeleteAsync() |> Async.AwaitTask)
-            //             |> Async.Parallel
-            //             |> Async.Ignore
-            // }
-            // |> Async.RunSynchronously
+
+            let containerClient container = Azure.Storage.Blobs.BlobContainerClient(storageConfig, container)
+            let propertiesContainer = containerClient "properties"
+            propertiesContainer.CreateIfNotExists() |> ignore
+            for blob in propertiesContainer.GetBlobs() do
+                propertiesContainer.GetBlobClient(blob.Name).DeleteIfExists() |> ignore
+
             let ds =
                 DataSource
                     (Container = DataContainer(Name = "properties"),
-                     Credentials = DataSourceCredentials
-                                       (ConnectionString = storageConfig),
-                     Name = "blob-transactions", Type = DataSourceType.AzureBlob)
+                     Credentials = DataSourceCredentials(ConnectionString = storageConfig),
+                     Name = "blob-transactions",
+                     Type = DataSourceType.AzureBlob)
             client.DataSources.Delete ds.Name
             client.DataSources.Create ds |> ignore
             // indexer
@@ -112,7 +109,8 @@ module Management =
                      Parameters = IndexingParameters().ParseJsonArrays())
             client.Indexers.Delete indexer.Name
             client.Indexers.Create indexer |> ignore
-        | _ -> ()
+        | _ ->
+            ()
 
 /// Gets the columns to search on given a property field.
 let private toSearchColumns col =

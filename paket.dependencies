@@ -2,7 +2,7 @@ source https://api.nuget.org/v3/index.json
 framework: netcoreapp3.1
 storage: none
 
-
+nuget Azure.Storage.Blobs
 nuget Fable.Core
 nuget Fable.Elmish
 nuget Fable.Elmish.React
