@@ -1,10 +1,7 @@
 module SafeSearch.Update
 
 open Elmish
-open Elmish.Toastr
-open Fable.PowerPack.Fetch
 open System
-open Thoth.Elmish
 open Thoth.Json
 
 let printNumber (n : int64) =
@@ -32,7 +29,7 @@ module Server =
 
             let uri =
                 match sort with
-                | { SortColumn = Some column; SortDirection = Some direction } ->
+                | { Sort.SortColumn = Some column; SortDirection = Some direction } ->
                     sprintf "%sSortColumn=%s&SortDirection=%O" uri column
                         direction
                 | { SortColumn = Some column; SortDirection = None } ->
@@ -98,40 +95,12 @@ let defaultModel =
             GoogleMapsKey = None
             Sorting =
                 { SortDirection = Some Descending
-                  SortColumn = Some "Date" }
-            Debouncer = Debouncer.create() }
+                  SortColumn = Some "Date" } }
       IndexStats = Map []
       Refreshing = false }
 
 let init() =
     defaultModel, Cmd.batch [ Server.loadAllStats; Server.loadGoogleKey ]
-
-let updateIndexMsg msg model =
-    match msg with
-    | LoadIndexStats -> { model with Refreshing = true }, Server.loadAllStats
-    | LoadedIndexStats(index, stats) ->
-        { model with IndexStats =
-                         model.IndexStats |> Map.add index.Endpoint stats
-                     Refreshing = false }, Cmd.none
-    | StartIndexing index ->
-        let cmd =
-            Cmd.ofPromise
-                (fetchAs (sprintf "api/%s/import" index.Endpoint) Decode.int64)
-                [] ((fun rows -> StartedIndexing(index, rows)) >> IndexMsg)
-                ErrorOccurred
-        { model with IndexStats =
-                         model.IndexStats
-                         |> Map.add index.Endpoint { Status = Indexing 0
-                                                     DocumentCount = 0L }
-                     Refreshing = false }, cmd
-    | StartedIndexing(index, documents) ->
-        let messageCmd =
-            Toastr.message
-                (sprintf "Importing %s %s" (printNumber documents)
-                     index.Endpoint)
-            |> Toastr.title "Import started!"
-            |> Toastr.info
-        model, Cmd.batch [ Server.loadAllStats; messageCmd ]
 
 let private validateSearchTextMsg =
     Cmd.ofMsg (ValidateSearchText
@@ -141,24 +110,15 @@ let private validateSearchTextMsg =
 let updateSearchTextMsg msg (model : SearchDetails) =
     match msg, model.SelectedSearchMethod with
     | SetSearchText(text, UserAction), _ ->
-        let debouncerModel, debouncerCmd =
-            model.Debouncer
-            |> Debouncer.bounce (TimeSpan.FromSeconds 1.0) "user_input"
-                   FetchSuggestions
-
         let model =
             { model with SearchText = text
                          Suggestions = [||]
                          SearchError = None
-                         IsTextDirty = false
-                         Debouncer = debouncerModel }
+                         IsTextDirty = false }
 
         let commands =
             Cmd.batch
-                [ validateSearchTextMsg
-
-                  Cmd.map DebouncerSelfMsg debouncerCmd
-                  |> Cmd.map (SearchTextMsg >> SearchMsg) ]
+                [ validateSearchTextMsg ]
 
         model, commands
     | SetSearchText(text, SystemAction), _ ->
@@ -166,11 +126,6 @@ let updateSearchTextMsg msg (model : SearchDetails) =
                      Suggestions = [||]
                      SearchError = None
                      IsTextDirty = true }, validateSearchTextMsg
-    | DebouncerSelfMsg debouncerMsg, _ ->
-        let debouncerModel, debouncerCmd =
-            Debouncer.update debouncerMsg model.Debouncer
-        { model with Debouncer = debouncerModel },
-        debouncerCmd |> Cmd.map (SearchTextMsg >> SearchMsg)
     | FetchSuggestions, _ ->
         if not (String.IsNullOrWhiteSpace model.SearchText) then
             model, (Server.getSuggestions model.SearchText)
@@ -264,8 +219,6 @@ let updateSearchMsg msg model =
 
 let update msg model =
     match msg with
-    | IndexMsg msg ->
-        updateIndexMsg msg model
     | SearchMsg msg ->
         let search, cmd = updateSearchMsg msg model.Search
         { model with Search = search }, cmd

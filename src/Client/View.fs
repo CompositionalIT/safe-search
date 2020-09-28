@@ -1,50 +1,20 @@
 module SafeSearch.View
 
 open Fable.Core.JsInterop
-open Fable.Helpers.React
-open Fable.Helpers.React.Props
-open Fable.Helpers.ReactGoogleMaps
-open Fable.Helpers.ReactGoogleMaps.Props
+open Fable.React
+open Fable.React.Props
+open Fable.ReactGoogleMaps
+open Fable.ReactGoogleMaps.Props
 open Fulma
-open Fulma.FontAwesome
+open Fable.FontAwesome
 
-let createNavBar model dispatch =
+let createNavBar =
     Navbar.navbar [] [
-        Navbar.Brand.a [ GenericOption.Props [ Href "https://safe-stack.github.io/docs/" ] ] [
+        Navbar.Brand.a [ Props [ Href "https://safe-stack.github.io/docs/" ] ] [
             Navbar.Item.div [] [
                 img [ Src "/Images/safe_favicon.png" ]
                 str "SAFE Stack"
             ]
-        ]
-
-        Navbar.End.div [] [
-            let isIndexing =
-                model.IndexStats
-                |> Map.exists (fun _ ->
-                    function
-                    | { Status = Indexing _ } ->
-                        true
-                    | _ ->
-                        false)
-
-            let createImportButton index =
-                Navbar.Item.div [] [
-                    Button.button [
-                        if isIndexing then yield Button.Disabled true
-                        yield Button.Color IsInfo
-                        yield Button.OnClick (fun _ -> dispatch (StartIndexing index))
-                    ] [
-                        str (sprintf "Import %s" index.Endpoint)
-                    ]
-                ]
-            let statsText =
-                model.IndexStats
-                |> Map.toSeq
-                |> Seq.map (fun (index, stats) -> sprintf "%s %s" (Update.printNumber stats.DocumentCount) index)
-                |> String.concat " and "
-                |> sprintf "%s indexed."
-
-            yield Navbar.Item.div [] [ str statsText ]
         ]
     ]
 
@@ -54,15 +24,17 @@ module Helpers =
             Dropdown.Item.IsActive(isActive currentSearchMethod)
             Dropdown.Item.Props [ OnClick(fun _ -> dispatch (SetSearchMethod searchMethod)) ]
         ] [
-            Icon.faIcon [ Icon.Size IsSmall ] [ Fa.icon icon ]
+            Icon.icon [ Icon.Size IsSmall ] [
+                Fa.i [ icon ] [ ]
+            ]
             str (sprintf "%O Search" searchMethod)
         ]
 
 module SearchPanel =
     let heading = [
         Heading.h3 [] [
-            Icon.faIcon [ Icon.Modifiers [ Modifier.TextColor IColor.IsInfo ] ] [
-                Fa.icon Fa.I.Home
+            Icon.icon [ Icon.Modifiers [ Modifier.TextColor IsInfo ] ] [
+                Fa.i [ Fa.Solid.Home ] [ ]
             ]
             span [] [
                 str " SAFE Search"
@@ -101,8 +73,8 @@ module SearchPanel =
                     dispatch (SearchTextMsg (SetSearchText (e.Value, UserAction))))
             ]
 
-            Icon.faIcon [ Icon.Size IsSmall; Icon.IsLeft ] [
-                Fa.icon Fa.I.Search
+            Icon.icon [ Icon.Size IsSmall; Icon.IsLeft ] [
+                Fa.i [ Fa.Solid.Search ] []
             ]
         ]
     let infoPanel model =
@@ -159,8 +131,9 @@ module SearchPanel =
             | CanSearch ->
                 yield Button.OnClick(fun _ -> dispatch StartSearch)
         ] [
-            Icon.faIcon [] [
-                Fa.icon Fa.I.Search ]
+            Icon.icon [] [
+                Fa.i [ Fa.Solid.Search ] []
+            ]
             span [] [
                 str "Search" ]
         ]
@@ -172,18 +145,18 @@ module SearchPanel =
                         let icon =
                             match model.SelectedSearchMethod with
                             | Standard ->
-                                Fa.I.Search
+                                Fa.Solid.Search
                             | Location ->
-                                Fa.I.LocationArrow
-                        yield Icon.faIcon [ Icon.Size IsSmall ] [
-                            Fa.icon icon
+                                Fa.Solid.LocationArrow
+                        Icon.icon [ Icon.Size IsSmall ] [
+                            Fa.i [ icon ] []
                         ]
-                        yield span [] [
+                        span [] [
                             str (sprintf "%O Search" model.SelectedSearchMethod)
                         ]
                     ]
-                    Icon.faIcon [ Icon.Size IsSmall ] [
-                        Fa.icon Fa.I.AngleDown
+                    Icon.icon [ Icon.Size IsSmall ] [
+                        Fa.i [ Fa.Solid.AngleDown ] []
                     ]
                 ]
 
@@ -193,14 +166,14 @@ module SearchPanel =
                             dispatch
                             Standard
                             model.SelectedSearchMethod
-                            Fa.I.Search (function
+                            Fa.Solid.Search (function
                             | Standard -> true
                             | _ -> false)
                         Helpers.makeDropDownItem
                             dispatch
                             Location
                             model.SelectedSearchMethod
-                            Fa.I.LocationArrow (function
+                            Fa.Solid.LocationArrow (function
                             | Location -> true
                             | _ -> false)
                     ]
@@ -231,7 +204,7 @@ let asCurrency =
     >> Update.printNumber
     >> sprintf "£%s"
 let makeMap (lat, long, originMarker) container markers zoomLevel apiKey =
-    let center = Fable.Helpers.GoogleMaps.Literal.createLatLng lat long
+    let center = GoogleMaps.Literal.createLatLng lat long
     Box.box' []
         [ googleMap
               [ match apiKey with Some apiKey -> yield MapProperties.ApiKey apiKey | None -> ()
@@ -248,15 +221,15 @@ let createResultsGrid response model dispatch =
 
     let maybeSortableColumn searchMethod basicBuilder sortableBuilder name sort =
         let icon icon =
-            Icon.faIcon [ Icon.Modifiers [ Modifier.TextColor IColor.IsGrey ] ] [ Fa.icon icon ]
+            Icon.icon [ Icon.Modifiers [ Modifier.TextColor IsGrey ] ] [ Fa.i [ icon ] [] ]
         [ match searchMethod with
           | StandardResponse _ ->
               yield sortableBuilder name
               match sort with
-              | { SortColumn = Some c; SortDirection = Some Ascending } when c = name ->
-                  yield icon Fa.I.ArrowDown
+              | { Sort.SortColumn = Some c; SortDirection = Some Ascending } when c = name ->
+                  yield icon Fa.Solid.ArrowDown
               | { SortColumn = Some c; SortDirection = Some Descending } when c = name ->
-                  yield icon Fa.I.ArrowUp
+                  yield icon Fa.Solid.ArrowUp
               | _ -> ()
           | LocationResponse _ ->
               yield basicBuilder name ]
@@ -268,19 +241,19 @@ let createResultsGrid response model dispatch =
             let makeTab active icon text viewType =
                 Tabs.tab [ Tabs.Tab.IsActive active ] [
                     a [ OnClick (fun _ -> dispatch (ChangeView viewType)) ] [
-                        Icon.faIcon [ Icon.Modifiers [] ] [ Fa.icon icon ]
+                        Icon.icon [ Icon.Modifiers [] ] [ Fa.i [ icon ] [] ]
                         str text
                     ]
                 ]
             yield makeTab
                     (model.SearchResults.CurrentView = ResultsList)
-                    Fa.I.List "List"
+                    Fa.Solid.List "List"
                     ResultsList
             match model.SearchResults with
             | LocationResponse _ ->
                 yield makeTab
                         (model.SearchResults.CurrentView = ResultsMap)
-                        Fa.I.Map "Map"
+                        Fa.Solid.Map "Map"
                         ResultsMap
             | StandardResponse _ ->
                 ()
@@ -314,35 +287,35 @@ let createResultsGrid response model dispatch =
                     for result in response.Results ->
                         tr [] [
                             yield td [] [
-                                Icon.faIcon [
+                                Icon.icon [
                                     Icon.Option.Props [
                                         OnClick (fun _ -> dispatch (SelectProperty result))
                                         Style [ Cursor "pointer" ]
                                     ]
                                     Icon.Modifiers [ Modifier.TextColor IColor.IsInfo ]
                                 ] [
-                                    Fa.icon Fa.I.InfoCircle
+                                    Fa.i [ Fa.Solid.InfoCircle ] []
                                 ]
                             ]
                             yield td [] [
                                 str (result.DateOfTransfer.Date.ToShortDateString ())
                             ]
-                            yield td [ Style [ TextAlign "right" ] ] [
+                            yield td [ Style [ TextAlign TextAlignOptions.Right ] ] [
                                 str (asCurrency result.Price)
                             ]
-                            yield td [ Style [ WhiteSpace "nowrap" ] ] [
+                            yield td [ Style [ WhiteSpace WhiteSpaceOptions.Nowrap ] ] [
                                 result.Address.Street |> Option.defaultValue "" |> str
                             ]
-                            yield td [ Style [ WhiteSpace "nowrap" ] ] [
+                            yield td [ Style [ WhiteSpace WhiteSpaceOptions.Nowrap ] ] [
                                 str result.Address.TownCity
                             ]
-                            yield td [ Style [ WhiteSpace "nowrap" ] ] [
+                            yield td [ Style [ WhiteSpace WhiteSpaceOptions.Nowrap ] ] [
                                 str result.Address.County
                             ]
 
                             match result.Address.PostCode with
                             | Some postcode ->
-                                yield td [ Style [ WhiteSpace "nowrap" ] ] [
+                                yield td [ Style [ WhiteSpace WhiteSpaceOptions.Nowrap ] ] [
                                     a [ OnClick (fun _ -> dispatch (SetSearchMethod Location)
                                                           dispatch (SearchTextMsg
                                                                         (SetSearchText
@@ -376,7 +349,7 @@ let createResultsGrid response model dispatch =
                             result.Address.Building
                     marker [
                         MarkerProperties.Key (string result.Address.PostCode)
-                        MarkerProperties.Position !^(Fable.Helpers.GoogleMaps.Literal.createLatLng geo.Lat geo.Long)
+                        MarkerProperties.Position !^(GoogleMaps.Literal.createLatLng geo.Lat geo.Long)
                         MarkerProperties.Icon("images/house.png")
                         MarkerProperties.Title (sprintf "%d. %s (%s)" (i + 1) markerText (result.Price |> asCurrency))
                     ] [])
@@ -537,23 +510,23 @@ let createPropertyPopup (propertyResult : PropertyResult) apiKey closeModal =
 
 let view model dispatch =
     div [] [
-        yield createNavBar model (IndexMsg >> dispatch)
+        createNavBar
         let searchPanelOpts = [
             if Array.isEmpty model.Search.SearchResults.Response.Results then
-                yield Section.IsLarge
+                Section.IsLarge
         ]
-        yield Section.section searchPanelOpts [
+        Section.section searchPanelOpts [
             SearchPanel.createSearchPanel model.Search (SearchMsg >> dispatch)
         ]
-        yield section [] [
+        section [] [
             createSearchResults model.Search dispatch
         ]
         match model.Search.SelectedProperty with
         | Some selectedProperty ->
-            yield createPropertyPopup
-                    selectedProperty
-                    model.Search.GoogleMapsKey
-                    (fun _ -> dispatch (SearchMsg DeselectProperty))
+            createPropertyPopup
+                selectedProperty
+                model.Search.GoogleMapsKey
+                (fun _ -> dispatch (SearchMsg DeselectProperty))
         | None ->
             ()
     ]

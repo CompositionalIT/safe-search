@@ -1,7 +1,5 @@
 namespace SafeSearch
 
-open Thoth.Elmish
-
 type InvalidSearch =
     | NoSearchText
     | InvalidPostcode
@@ -30,12 +28,12 @@ type ResultsView =
 type SearchResultType =
     | StandardResponse of SearchResponse
     | LocationResponse of SearchResponse * Geo * ResultsView
-    
+
     member this.CurrentView =
         match this with
         | StandardResponse _ -> ResultsList
         | LocationResponse(_, _, view) -> view
-    
+
     member this.Response =
         match this with
         | StandardResponse r -> r
@@ -52,19 +50,12 @@ type SearchDetails =
       SelectedFacets : Map<string, string * string>
       IsTextDirty : bool
       Suggestions : string array
-      GoogleMapsKey : string option
-      Debouncer : Debouncer.State }
+      GoogleMapsKey : string option }
 
 type Model =
     { Search : SearchDetails
       IndexStats : Map<string, IndexStats>
       Refreshing : bool }
-
-type IndexMsg =
-    | LoadIndexStats
-    | LoadedIndexStats of IndexName * IndexStats
-    | StartIndexing of IndexName
-    | StartedIndexing of IndexName * int64
 
 type TextChangeSource =
     | UserAction
@@ -72,7 +63,6 @@ type TextChangeSource =
 
 type SearchTextMsg =
     | SetSearchText of string * TextChangeSource
-    | DebouncerSelfMsg of SearchTextMsg Debouncer.SelfMessage
     | FetchSuggestions
     | FetchedSuggestions of SuggestResponse
     | ValidateSearchText
@@ -93,6 +83,5 @@ type SearchMsg =
     | LoadedConfig of string option
 
 type Msg =
-    | IndexMsg of IndexMsg
     | SearchMsg of SearchMsg
     | ErrorOccurred of exn
