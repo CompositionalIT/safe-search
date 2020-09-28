@@ -45,70 +45,70 @@ let indexName = "properties"
 [<AutoOpen>]
 module Management =
     open System.Collections.Generic
-    
+
     let searchClient =
         let connections = Dictionary()
-        fun searchConfig -> 
-            if not (connections.ContainsKey searchConfig) then 
+        fun searchConfig ->
+            if not (connections.ContainsKey searchConfig) then
                 let (ConnectionString c) = (fst searchConfig)
-                connections.[searchConfig] <- new SearchServiceClient(snd 
-                                                                          searchConfig, 
-                                                                      SearchCredentials 
+                connections.[searchConfig] <- new SearchServiceClient(snd
+                                                                          searchConfig,
+                                                                      SearchCredentials
                                                                           c)
             connections.[searchConfig]
-    
+
     let propertiesIndex searchConfig =
         let client = searchClient searchConfig
         client.Indexes.GetClient indexName
-    
+
     type InitializationMode =
         | ForceReset
         | OnlyIfNonExistant
-    
+
     let initialize initMode searchConfig (ConnectionString storageConfig) =
         let client = searchClient searchConfig
         // index
         match initMode, client.Indexes.Exists indexName with
-        | ForceReset, _ | _, false -> 
+        | ForceReset, _ | _, false ->
             client.Indexes.Delete indexName
             let index =
-                Index
-                    (Name = indexName, 
-                     Fields = FieldBuilder.BuildForType<SearchableProperty>(), 
+                Models.Index
+                    (Name = indexName,
+                     Fields = FieldBuilder.BuildForType<SearchableProperty>(),
                      Suggesters = [| Suggester
-                                         (Name = suggesterName, 
-                                          SourceFields = [| "Street"; "Locality"; 
-                                                            "Town"; "District"; 
+                                         (Name = suggesterName,
+                                          SourceFields = [| "Street"; "Locality";
+                                                            "Town"; "District";
                                                             "County" |]) |])
             client.Indexes.Create index |> ignore
             // datasource for indexer
-            async { 
-                let! _ = Storage.Azure.Containers.properties.AsCloudBlobContainer(storageConfig)
-                                .CreateIfNotExistsAsync() |> Async.AwaitTask
-                let! blobs = Storage.Azure.Containers.properties.ListBlobs
-                                 (connectionString = storageConfig)
-                return! blobs
-                        |> Array.map 
-                               (fun b -> 
-                               b.AsICloudBlob().DeleteAsync() |> Async.AwaitTask)
-                        |> Async.Parallel
-                        |> Async.Ignore
-            }
-            |> Async.RunSynchronously
+            // async {
+            //     let! _ = Storage.Azure.Containers.properties.AsCloudBlobContainer(storageConfig)
+            //                     .CreateIfNotExistsAsync() |> Async.AwaitTask
+            //     let! blobs = Storage.Azure.Containers.properties.ListBlobs
+            //                      (connectionString = storageConfig)
+            //     return! blobs
+            //             |> Array.map
+            //                    (fun b ->
+            //                    b.AsICloudBlob().DeleteAsync() |> Async.AwaitTask)
+            //             |> Async.Parallel
+            //             |> Async.Ignore
+            // }
+            // |> Async.RunSynchronously
             let ds =
                 DataSource
-                    (Container = DataContainer(Name = "properties"), 
+                    (Container = DataContainer(Name = "properties"),
                      Credentials = DataSourceCredentials
-                                       (ConnectionString = storageConfig), 
+                                       (ConnectionString = storageConfig),
                      Name = "blob-transactions", Type = DataSourceType.AzureBlob)
             client.DataSources.Delete ds.Name
             client.DataSources.Create ds |> ignore
             // indexer
             let indexer =
                 Indexer
-                    (Name = "properties-indexer", DataSourceName = ds.Name, 
-                     TargetIndexName = indexName, 
-                     Schedule = IndexingSchedule(TimeSpan.FromMinutes 5.), 
+                    (Name = "properties-indexer", DataSourceName = ds.Name,
+                     TargetIndexName = indexName,
+                     Schedule = IndexingSchedule(TimeSpan.FromMinutes 5.),
                      Parameters = IndexingParameters().ParseJsonArrays())
             client.Indexers.Delete indexer.Name
             client.Indexers.Create indexer |> ignore
@@ -127,7 +127,7 @@ let private toSearchColumns col =
 let private toFindPropertiesResponse findFacet count page results =
     { Results =
           results
-          |> Array.map (fun result -> 
+          |> Array.map (fun result ->
                  { BuildDetails =
                        { PropertyType =
                              result.PropertyType |> PropertyType.Parse
@@ -144,7 +144,7 @@ let private toFindPropertiesResponse findFacet count page results =
                          GeoLocation =
                              result.Geo
                              |> Option.ofObj
-                             |> Option.map (fun geo -> 
+                             |> Option.map (fun geo ->
                                     { Lat = geo.Latitude
                                       Long = geo.Longitude }) }
                    Price =
@@ -167,14 +167,14 @@ let private toFindPropertiesResponse findFacet count page results =
 open Filters
 
 let findGeneric searchConfig (request : FindGenericRequest) =
-    task { 
+    task {
         let query =
             let toFieldSort =
                 match request.Sort.SortDirection with
-                | Some Ascending | None -> 
+                | Some Ascending | None ->
                     fun s -> ByField(s, Direction.Ascending)
                 | Some Descending -> fun s -> ByField(s, Direction.Descending)
-            azureSearch { 
+            azureSearch {
                 fulltext (request.Text |> Option.map(sprintf "%s*") |> Option.toObj)
                 filter (request.Filter.AllFilters
                         |> List.map whereEq
@@ -188,40 +188,37 @@ let findGeneric searchConfig (request : FindGenericRequest) =
                 facets [ "Town"; "Locality"; "District"; "County"; "Price" ]
                 includeTotalResults
             }
-        
+
         let searchClient = searchClient searchConfig
         printfn "%O" query
-        let! results, facets, count = Kibalta.doSearch<SearchableProperty> 
+        let! results, facets, count = Kibalta.doSearch<SearchableProperty>
                                           indexName searchClient query
-        return results 
+        return results
                |> toFindPropertiesResponse facets.TryFind count request.Page
     }
 
 let findByPostcode searchConfig (request : FindNearestRequest) =
-    task { 
+    task {
         let query =
             let postcodeFilter =
-                let geoFilter =
-                    whereGeo (request.Geo.Long, request.Geo.Lat) Lt 
-                        (float request.MaxDistance)
+                let geoFilter = whereGeoDistance "Geo" (request.Geo.Long, request.Geo.Lat) Lt (float request.MaxDistance)
                 let basicFilters = request.Filter.AllFilters |> List.map whereEq
                 combine (geoFilter :: basicFilters)
-            azureSearch { 
+            azureSearch {
                 filter postcodeFilter
-                sort 
-                    [ ByDistance
-                          (request.Geo.Long, request.Geo.Lat, 
-                           Direction.Ascending) ]
+                sort [
+                    ByDistance ("Geo", request.Geo.Long, request.Geo.Lat, Direction.Ascending)
+                ]
                 skip (request.Page * 20)
                 top 20
                 facets [ "Town"; "Locality"; "District"; "County"; "Price" ]
                 includeTotalResults
             }
-        
+
         let searchClient = searchClient searchConfig
-        let! results, facets, count = Kibalta.doSearch<SearchableProperty> 
+        let! results, facets, count = Kibalta.doSearch<SearchableProperty>
                                           indexName searchClient query
-        return results 
+        return results
                |> toFindPropertiesResponse facets.TryFind count request.Page
     }
 
@@ -230,10 +227,10 @@ let getDocumentSize searchConfig =
     index.Documents.CountAsync()
 
 let suggest config (request : SuggestRequest) =
-    task { 
+    task {
         let index = propertiesIndex config
         let! result = index.Documents.SuggestAsync
-                          (request.Text, suggesterName, 
+                          (request.Text, suggesterName,
                            SuggestParameters(Top = Nullable 10))
         return { Suggestions =
                      result.Results

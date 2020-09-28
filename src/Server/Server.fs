@@ -10,11 +10,6 @@ let webApp searcher appConfig = router {
     forward "/api/transactions/" (Routers.Transactions.createRouter searcher appConfig.AzureStorage)
     forward "/api/postcodes/" (Routers.Postcodes.createRouter appConfig.AzureStorage) }
 
-let configureAppInsights (services : IServiceCollection) =
-    match tryGetEnv "APPINSIGHTS_INSTRUMENTATIONKEY" with
-    | Some key -> services.AddApplicationInsightsTelemetry key
-    | None -> services
-
 let appConfig =
     let builder =
         let path = DirectoryInfo(Directory.GetCurrentDirectory()).Parent.FullName
@@ -39,7 +34,6 @@ let app =
         memory_cache
         use_static "public"
         use_json_serializer (Thoth.Json.Giraffe.ThothSerializer())
-        service_config configureAppInsights
         use_gzip
     }
 

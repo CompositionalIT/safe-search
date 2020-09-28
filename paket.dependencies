@@ -37,6 +37,3 @@ group Build
     nuget Fake.IO.Zip
     nuget Fake.DotNet.Cli
     nuget Farmer
-    
-    github CompositionalIT/fshelpers src/FsHelpers/ArmHelper/ArmHelper.fs
-
