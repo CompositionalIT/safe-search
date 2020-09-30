@@ -1,8 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
+    <UserSecretsId>472cadf5-3c04-45c8-93df-3d378cab00c6</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\..\paket-files\CompositionalIT\kibalta\src\Kibalta.fs">

@@ -8,3 +8,5 @@ Fable.React
 Fable.ReactGoogleMaps
 Fable.Remoting.Client
 Fulma
+Thoth.Fetch
+Elmish.Toastr

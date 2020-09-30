@@ -2,7 +2,10 @@ module SafeSearch.Update
 
 open Elmish
 open System
+open Fable.Core.JS
 open Thoth.Json
+open Thoth.Fetch
+open Elmish.Toastr
 
 let printNumber (n : int64) =
     let chars =
@@ -22,7 +25,7 @@ module Server =
     let private locationResponseDecoder =
         Decode.Auto.generateDecoder<Result<Geo * SearchResponse, SearchError>>()
 
-    let private loadProperties decoder (onSuccess : _ -> Result<_, _>) uri page
+    let inline private loadProperties decoder (onSuccess : _ -> Result<_, _>) uri page
         sort selectedFacets =
         let uri =
             let uri = sprintf "/api/search/%s/%i?" uri page
@@ -44,10 +47,8 @@ module Server =
             function
             | Ok msg -> SearchComplete msg
             | Error msg -> FoundFailed msg
-
-        Cmd.ofPromise (fetchAs uri decoder) [] (onSuccess
-                                                >> handleResult
-                                                >> SearchMsg) ErrorOccurred
+        
+        Cmd.OfPromise.either (fun () -> Fetch.get(uri, decoder = decoder)) () (onSuccess >> handleResult >> SearchMsg) ErrorOccurred
 
     let loadPropertiesNormal =
         sprintf "standard/%s"
@@ -55,30 +56,26 @@ module Server =
     let loadPropertiesLocation (postcode, distance, view) =
         sprintf "geo/%s/%d" postcode distance
         |> loadProperties locationResponseDecoder
-               (Result.map
-                    (fun (geo, results) -> LocationResponse(results, geo, view)))
+               (Result.map (fun (geo, results) -> LocationResponse(results, geo, view)))
 
     let loadAllStats =
         let loadStats (index : IndexName) =
-            Cmd.ofPromise
-                (fetchAs (sprintf "/api/%s/stats" index.Endpoint)
-                     (Decode.Auto.generateDecoder())) []
+            Cmd.OfPromise.either
+                (fun () -> Fetch.get (sprintf "/api/%s/stats" index.Endpoint))
+                ()
                 ((fun stats -> LoadedIndexStats(index, stats)) >> IndexMsg)
                 ErrorOccurred
         Cmd.batch [ loadStats PostcodeIndex
                     loadStats TransactionsIndex ]
 
     let loadGoogleKey =
-        Cmd.ofPromise
-            (fetchAs "/api/search/config" (Decode.option Decode.string)) []
-            (LoadedConfig >> SearchMsg) ErrorOccurred
+        Cmd.OfPromise.either (fun _ -> Fetch.get "/api/search/config") [] (LoadedConfig >> SearchMsg) ErrorOccurred
 
     let getSuggestions text =
-        Cmd.ofPromise
-            (fetchAs (sprintf "/api/search/suggest/%s" text)
-                 (Decode.Auto.generateDecoder())) [] (FetchedSuggestions
-                                                      >> SearchTextMsg
-                                                      >> SearchMsg)
+        Cmd.OfPromise.either
+            (fun () -> Fetch.get (sprintf "/api/search/suggest/%s" text))
+            ()
+            (FetchedSuggestions >> SearchTextMsg >> SearchMsg)
             ErrorOccurred
 
 let defaultModel =
@@ -90,13 +87,13 @@ let defaultModel =
             SelectedProperty = None
             SearchError = None
             Suggestions = [||]
-            SelectedFacets = Map.empty
+            SelectedFacets = Collections.Map.empty
             IsTextDirty = false
             GoogleMapsKey = None
             Sorting =
                 { SortDirection = Some Descending
                   SortColumn = Some "Date" } }
-      IndexStats = Map []
+      IndexStats = Collections.Map.empty
       Refreshing = false }
 
 let init() =
@@ -159,7 +156,7 @@ let updateSearchMsg msg model =
                         Server.loadPropertiesLocation
                             (model.SearchText, 1,
                              model.SearchResults.CurrentView)
-                cmd 0 model.Sorting (Map.toSeq model.SelectedFacets)
+                cmd 0 model.Sorting (Collections.Map.toSeq model.SelectedFacets)
             { model with Suggestions = [||]
                          SearchState = Searching }, cmd
         | None -> model, Cmd.none

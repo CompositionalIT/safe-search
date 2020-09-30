@@ -81,7 +81,12 @@ type SearchMsg =
     | ChangeView of ResultsView
     | FoundFailed of SearchError
     | LoadedConfig of string option
+    
+type IndexMsg =
+    | LoadedIndexStats of IndexName * IndexStats option
 
 type Msg =
     | SearchMsg of SearchMsg
+    | IndexMsg of IndexMsg
     | ErrorOccurred of exn
+

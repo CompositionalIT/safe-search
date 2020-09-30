@@ -3,6 +3,7 @@ framework: netcoreapp3.1
 storage: none
 
 nuget Azure.Storage.Blobs
+nuget Elmish.Toastr
 nuget Fable.Core
 nuget Fable.Elmish
 nuget Fable.Elmish.React
@@ -17,6 +18,7 @@ nuget FSharp.Data
 nuget Fulma
 nuget Saturn
 nuget TaskBuilder.fs
+nuget Thoth.Fetch
 nuget Thoth.Json.Giraffe
 
 github CompositionalIT/kibalta src/Kibalta.fs

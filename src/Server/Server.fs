@@ -10,13 +10,16 @@ let webApp searcher appConfig = router {
     forward "/api/transactions/" (Routers.Transactions.createRouter searcher appConfig.AzureStorage)
     forward "/api/postcodes/" (Routers.Postcodes.createRouter appConfig.AzureStorage) }
 
+type DummyType = DummyType
+
 let appConfig =
     let builder =
-        let path = DirectoryInfo(Directory.GetCurrentDirectory()).Parent.FullName
+        let path = DirectoryInfo(Directory.GetCurrentDirectory()).FullName
         printfn "Searching for configuration in %s" path
         ConfigurationBuilder()
             .SetBasePath(path)
             .AddJsonFile("appsettings.json", optional = true)
+            .AddUserSecrets<DummyType>()
             .AddEnvironmentVariables()
             .Build()
     { AzureStorage = ConnectionString(builder.GetConnectionString "AzureStorage")
